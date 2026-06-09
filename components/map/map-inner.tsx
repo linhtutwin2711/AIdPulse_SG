@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import L from "leaflet";
 import {
   CircleMarker,
@@ -11,20 +11,58 @@ import {
   useMap,
 } from "react-leaflet";
 import { hospitalMarkerHtml } from "./hospital-marker";
-import type { CaseMarker, Hospital } from "@/types";
+import { SG_LAND_RINGS } from "./sg-land";
+import type { ActiveCase, CaseMarker, Hospital } from "@/types";
 import { SG_CENTER } from "@/constants";
+import { reportTypeColor } from "@/lib/data";
 
-const SEVERITY_COLOR: Record<string, string> = {
-  critical: "#ef4444",
-  high: "#f59e0b",
-  moderate: "#3b82f6",
-  low: "#22c55e",
+// Dots are coloured by case TYPE so the colours match the filter legend
+// (Dengue = red, COVID-19 = blue, Influenza = amber).
+const TYPE_COLOR: Record<string, string> = {
+  dengue: "#ef4444",
+  covid: "#3b82f6",
+  flu: "#f59e0b",
+  heatstroke: "#f97316",
+  foodborne: "#22c55e",
+  other: "#a855f7",
 };
 
 // Deterministic pseudo-random in [0,1) so scattered dots stay put across renders.
 const rand = (seed: number) => {
   const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
+};
+
+// Stable numeric seed from a string id (independent of array position/filtering).
+const hash = (s: string) => {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % 100000;
+};
+
+// Ray-casting point-in-ring. SG_LAND_RINGS coords are [lng, lat].
+const inRing = (lat: number, lng: number, ring: [number, number][]) => {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+};
+
+// On the main island's coastline (ring 0) and not inside any reservoir/water
+// hole (rings 1+), so scattered dots never land in the sea or inland water.
+const inSingapore = (lat: number, lng: number) => {
+  if (!inRing(lat, lng, SG_LAND_RINGS[0])) return false;
+  for (let k = 1; k < SG_LAND_RINGS.length; k++) {
+    if (inRing(lat, lng, SG_LAND_RINGS[k])) return false;
+  }
+  return true;
 };
 
 /** Flies the map to a target when the search nonce changes. */
@@ -37,48 +75,111 @@ function FlyTo({ target, nonce }: { target: [number, number] | null; nonce: numb
   return null;
 }
 
+/** Drives zoom from the floating buttons in the page (rendered outside the map's
+    isolate context so they can sit above the panels). Bumping the nonce zooms. */
+function ZoomBus({ dir, nonce }: { dir: number; nonce: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!nonce) return;
+    if (dir > 0) map.zoomIn();
+    else if (dir < 0) map.zoomOut();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nonce]);
+  return null;
+}
+
+/** Recompute the map size whenever its container resizes (e.g. when the AI
+    drawer opens and pushes the layout) so tiles never render at a stale width. */
+function InvalidateOnResize() {
+  const map = useMap();
+  useEffect(() => {
+    const el = map.getContainer();
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [map]);
+  return null;
+}
+
 export default function MapInner({
   cases,
   hospitals,
+  activeCases,
+  enabledTypes,
   selectedId,
+  selectedCaseId,
   onSelectHospital,
+  onSelectCase,
   flyTarget,
   flyNonce,
+  zoomDir,
+  zoomNonce,
 }: {
   cases: CaseMarker[];
   hospitals: Hospital[];
+  activeCases: ActiveCase[];
+  enabledTypes: { dengue: boolean; covid: boolean; flu: boolean };
   selectedId: string | null;
+  selectedCaseId: string | null;
   onSelectHospital: (h: Hospital) => void;
+  onSelectCase: (c: ActiveCase) => void;
   flyTarget: [number, number] | null;
   flyNonce: number;
+  zoomDir: number;
+  zoomNonce: number;
 }) {
-  // Scatter many small dots per area, density proportional to case count.
+  // Scatter many small dots per area — each dot gets its own type so a cluster
+  // is a MIX of colours (a dominant type plus a sprinkle of the others).
+  const MIX = ["dengue", "covid", "flu"] as const;
   const caseDots = useMemo(() => {
-    const spread = 0.014; // ~1.5 km
-    const dots: { id: string; lat: number; lng: number; color: string; area: string; type: string }[] = [];
-    cases.forEach((c, i) => {
-      const count = Math.max(6, Math.min(Math.round(c.cases / 6), 70));
+    const spread = 0.026; // ~2.8 km
+    const dots: { id: string; lat: number; lng: number; area: string; type: string }[] = [];
+    cases.forEach((c) => {
+      const base = hash(c.id); // seed by the case's own id, not its list index
+      const count = Math.max(6, Math.min(Math.round(c.cases / 7), 55));
       for (let k = 0; k < count; k++) {
-        const angle = rand(i * 131 + k) * Math.PI * 2;
-        const r = Math.sqrt(rand(i * 131 + k + 0.37)) * spread;
-        dots.push({
-          id: `${c.id}-${k}`,
-          lat: c.lat + r * Math.cos(angle),
-          lng: c.lng + r * Math.sin(angle),
-          color: SEVERITY_COLOR[c.severity],
-          area: c.area,
-          type: c.type,
-        });
+        const angle = rand(base + k) * Math.PI * 2;
+        const r = Math.sqrt(rand(base + k + 0.37)) * spread;
+        // ~55% the area's main type, otherwise a random type from the mix pool.
+        const type = rand(base + k + 0.11) < 0.55 ? c.type : MIX[Math.floor(rand(base + k + 0.71) * MIX.length)];
+        // Pull the dot inward along its own ray until it sits on land — the case
+        // centre is a real urban point, so it's always inside the polygon.
+        let lat = c.lat;
+        let lng = c.lng;
+        for (let rr = r; rr > 0.0005; rr *= 0.7) {
+          const tryLat = c.lat + rr * Math.cos(angle);
+          const tryLng = c.lng + rr * Math.sin(angle);
+          if (inSingapore(tryLat, tryLng)) {
+            lat = tryLat;
+            lng = tryLng;
+            break;
+          }
+        }
+        dots.push({ id: `${c.id}-${k}`, lat, lng, area: c.area, type });
       }
     });
     return dots;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cases]);
+
+  // Type filtering happens per-dot (so positions never shift when toggling).
+  const isEnabled = (type: string) =>
+    type === "dengue" ? enabledTypes.dengue
+      : type === "covid" ? enabledTypes.covid
+        : type === "flu" ? enabledTypes.flu
+          : true;
+  const visibleDots = caseDots.filter((d) => isEnabled(d.type));
+
+  // Individual reported cases — the clickable dots (larger + brighter than the
+  // ambient scatter, with a glowing ring when selected).
+  const visibleCases = activeCases.filter((c) => isEnabled(c.caseType));
 
   return (
     <MapContainer
       center={SG_CENTER}
       zoom={12}
       scrollWheelZoom
+      zoomControl={false}
       className="h-full w-full"
       style={{ background: "#0a0b0e" }}
     >
@@ -86,18 +187,55 @@ export default function MapInner({
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         attribution="&copy; OpenStreetMap &copy; CARTO"
       />
+      <ZoomBus dir={zoomDir} nonce={zoomNonce} />
       <FlyTo target={flyTarget} nonce={flyNonce} />
+      <InvalidateOnResize />
 
-      {caseDots.map((d) => (
+      {/* Ambient density scatter (not clickable — gives the "many dots" spread). */}
+      {visibleDots.map((d) => (
         <CircleMarker
           key={d.id}
           center={[d.lat, d.lng]}
-          radius={3.5}
-          pathOptions={{ stroke: false, fillColor: d.color, fillOpacity: 0.8 }}
+          radius={3}
+          pathOptions={{ stroke: false, fillColor: TYPE_COLOR[d.type] ?? TYPE_COLOR.other, fillOpacity: 0.55 }}
         >
           <Tooltip direction="top">{d.area} · {d.type}</Tooltip>
         </CircleMarker>
       ))}
+
+      {/* Reported cases — clickable dots that drive the Case Details panel. */}
+      {visibleCases.map((c) => {
+        // Citizen reports are coloured by their report type; legacy/seed cases
+        // fall back to the disease-type palette.
+        const color = (c.reportType && reportTypeColor[c.reportType]) ?? TYPE_COLOR[c.caseType] ?? TYPE_COLOR.other;
+        const selected = selectedCaseId === c.id;
+        return (
+          <Fragment key={c.id}>
+            {selected && (
+              <CircleMarker
+                center={[c.lat, c.lng]}
+                radius={15}
+                interactive={false}
+                pathOptions={{ stroke: true, color, weight: 2, opacity: 0.7, fillColor: color, fillOpacity: 0.18 }}
+              />
+            )}
+            <CircleMarker
+              center={[c.lat, c.lng]}
+              radius={selected ? 9 : 7}
+              eventHandlers={{ click: () => onSelectCase(c) }}
+              pathOptions={{
+                stroke: true,
+                color: "#ffffff",
+                weight: selected ? 2.5 : 1.5,
+                fillColor: color,
+                fillOpacity: 1,
+              }}
+            >
+              <Tooltip direction="top">{c.locationName}</Tooltip>
+            </CircleMarker>
+          </Fragment>
+        );
+      })}
 
       {/* Hospitals render as custom liquid-fill "H" markers (no generic pins). */}
       {hospitals.map((h) => {

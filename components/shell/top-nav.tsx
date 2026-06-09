@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, FileText, Map as MapIcon } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
-import { useProfile } from "@/components/providers/profile-provider";
+import { ProfileMenu } from "@/components/shell/profile-menu";
 import { roleAccent, roleLabel } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
@@ -17,7 +17,6 @@ const TABS = [
 
 export function TopNav() {
   const pathname = usePathname();
-  const { displayName, initials } = useProfile();
 
   // The displayed role reflects the section you're actually in — not a sticky
   // flag. On the shared/citizen pages you're a normal user with no role title.
@@ -57,20 +56,11 @@ export function TopNav() {
           })}
         </nav>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
-              {initials}
-            </div>
-            <div className="leading-tight max-md:hidden">
-              <p className="text-sm font-medium">{displayName}</p>
-              {/* A normal user has no role title — it appears only in a role section. */}
-              {section !== "citizen" && (
-                <p className={cn("text-xs", roleAccent[section])}>{roleLabel[section]}</p>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* A normal user has no role title — it appears only in a role section. */}
+        <ProfileMenu
+          subtitle={section !== "citizen" ? roleLabel[section] : undefined}
+          subtitleClass={roleAccent[section]}
+        />
       </div>
     </header>
   );

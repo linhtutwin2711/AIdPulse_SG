@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   ArrowRight,
+  ChevronRight,
   HeartHandshake,
   Lock,
   LogIn,
   ShieldAlert,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useRole } from "@/components/providers/role-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,39 +65,106 @@ const CARDS: {
   },
 ];
 
-export function RoleSwitchCards() {
+type CardDef = (typeof CARDS)[number];
+
+/** Shared inner content for a role card (icon, title, locked badge, subtitle, arrow). */
+function CardBody({ c }: { c: CardDef }) {
+  return (
+    <>
+      <span className={cn("flex size-12 shrink-0 items-center justify-center rounded-xl", c.accent)}>
+        <c.icon className="size-6" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate font-semibold">{c.title}</p>
+          <span className="pill bg-secondary text-[10px] text-muted-foreground">
+            <Lock className="size-2.5" /> Locked
+          </span>
+        </div>
+        <p className="truncate text-sm text-muted-foreground">{c.cardDesc}</p>
+      </div>
+      <ArrowRight className="size-5 shrink-0 text-muted-foreground" />
+    </>
+  );
+}
+
+export function RoleSwitchCards({ variant = "grid" }: { variant?: "grid" | "map" }) {
   const router = useRouter();
   const { setRole } = useRole();
   const [openRole, setOpenRole] = useState<LockedRole | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const active = CARDS.find((c) => c.role === openRole) ?? null;
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {CARDS.map((c) => (
+      {variant === "map" ? (
+        /* Map: space is tight, so collapse to a compact anchor button; the two
+           cards slide/fade out to its right (staggered) when expanded. */
+        <div className="flex items-end">
           <button
-            key={c.role}
             type="button"
-            onClick={() => setOpenRole(c.role)}
-            className={`surface flex items-center gap-4 p-5 text-left transition-colors ${c.hover}`}
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            className="surface z-10 flex shrink-0 items-center gap-3 p-4 text-left transition-colors hover:border-border"
           >
-            <span className={`flex size-12 items-center justify-center rounded-xl ${c.accent}`}>
-              <c.icon className="size-6" />
-            </span>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="font-semibold">{c.title}</p>
-                <span className="pill bg-secondary text-[10px] text-muted-foreground">
-                  <Lock className="size-2.5" /> Locked
+            <span className="flex -space-x-2.5">
+              {CARDS.map((c) => (
+                <span
+                  key={c.role}
+                  className={cn("flex size-10 items-center justify-center rounded-xl border-2 border-card", c.accent)}
+                >
+                  <c.icon className="size-5" />
                 </span>
-              </div>
-              <p className="text-sm text-muted-foreground">{c.cardDesc}</p>
-            </div>
-            <ArrowRight className="size-5 shrink-0 text-muted-foreground" />
+              ))}
+            </span>
+            <span className="hidden xl:block">
+              <span className="block font-semibold leading-tight">Access Roles</span>
+              <span className="block text-xs text-muted-foreground">Volunteer · Officer</span>
+            </span>
+            <ChevronRight
+              className={cn(
+                "size-5 shrink-0 text-muted-foreground transition-transform duration-300",
+                expanded && "rotate-180"
+              )}
+            />
           </button>
-        ))}
-      </div>
+
+          {CARDS.map((c, i) => (
+            <button
+              key={c.role}
+              type="button"
+              onClick={() => setOpenRole(c.role)}
+              tabIndex={expanded ? 0 : -1}
+              aria-hidden={!expanded}
+              style={{ transitionDelay: expanded ? `${i * 70}ms` : "0ms" }}
+              className={cn(
+                "surface flex shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap text-left transition-all duration-300 ease-out",
+                c.hover,
+                expanded
+                  ? "ml-3 w-[15rem] translate-x-0 p-5 opacity-100"
+                  : "pointer-events-none ml-0 w-0 -translate-x-3 border-0 p-0 opacity-0"
+              )}
+            >
+              <CardBody c={c} />
+            </button>
+          ))}
+        </div>
+      ) : (
+        /* Default (dashboard): two cards always shown side by side. */
+        <div className="grid gap-4 sm:grid-cols-2">
+          {CARDS.map((c) => (
+            <button
+              key={c.role}
+              type="button"
+              onClick={() => setOpenRole(c.role)}
+              className={cn("surface flex items-center gap-4 p-5 text-left transition-colors", c.hover)}
+            >
+              <CardBody c={c} />
+            </button>
+          ))}
+        </div>
+      )}
 
       <Dialog open={!!active} onOpenChange={(o) => !o && setOpenRole(null)}>
         {active && (
