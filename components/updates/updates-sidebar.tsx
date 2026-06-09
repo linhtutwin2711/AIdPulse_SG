@@ -5,7 +5,6 @@ import {
   Bug,
   Newspaper,
   PanelLeft,
-  Plus,
   Repeat2,
   Search,
   ShieldPlus,
@@ -112,7 +111,6 @@ export function UpdatesSidebar({
 
         {/* Main actions */}
         <div className="space-y-1 px-2">
-          <SideItem icon={Plus} label="New Update Feed" collapsed={collapsed} onClick={() => onSelectView("latest")} />
           <SideItem icon={Search} label="Search Updates" collapsed={collapsed} active={view === "search"} onClick={() => onSelectView("search")} />
         </div>
 

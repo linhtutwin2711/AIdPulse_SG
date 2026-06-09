@@ -110,6 +110,34 @@ export interface CaseMarker {
   lng: number;
 }
 
+export type CaseStatus = "active" | "pending" | "resolved" | "expired";
+export type RiskLevel = "low" | "medium" | "high";
+
+// An individual reported case (from the Alert/Report page). Mirrors the future
+// Supabase `active_cases` table — `lib/data.ts#getActiveCases` is the seam.
+export interface ActiveCase {
+  id: string;
+  caseType: CaseType; // dengue | covid | flu | …  (drives the legend filter)
+  reportType?: ReportTypeId; // set for citizen reports — drives the dot colour
+  title: string; // e.g. "Dengue Report"
+  locationName: string;
+  lat: number;
+  lng: number;
+  distanceKm: number; // distance from the user
+  reportedAgo: string; // human label, e.g. "8 min ago"
+  status: CaseStatus;
+  riskLevel: RiskLevel;
+  description: string;
+  imageUrls: string[]; // uploaded photos (Supabase Storage URLs later)
+  reportedBy: string; // "Citizen Report" | "Anonymous Citizen" | …
+  nearbyCases: number;
+  disasterType?: string; // only for Natural Disaster reports (Flood, Fire, …)
+  contactPhone?: string; // optional reporter contact (with dial code)
+  contactEmail?: string; // optional reporter contact
+  createdAt?: string; // ISO
+  expiresAt?: string; // ISO — getActiveCases hides expired rows later
+}
+
 export type MissionStatus = "assigned" | "ongoing" | "completed" | "cancelled";
 
 export interface Mission {
@@ -169,6 +197,7 @@ export type ReportTypeId =
   | "exposure"
   | "positive"
   | "crowded"
+  | "disaster"
   | "other";
 
 export interface ReportType {

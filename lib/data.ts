@@ -3,6 +3,7 @@
 // body with a Supabase query later without touching the UI.
 
 import {
+  activeCases,
   areaRanks,
   caseMarkers,
   caseStats,
@@ -17,16 +18,71 @@ import {
   volunteerStats,
 } from "@/constants";
 import type {
+  ActiveCase,
+  CaseType,
   Conversation,
   Hospital,
   Mission,
   MissionStatus,
   Opportunity,
+  ReportTypeId,
 } from "@/types";
 
 export const getCaseStats = () => caseStats;
 export const getAreaRanks = () => areaRanks;
 export const getCaseMarkers = () => caseMarkers;
+
+// Individual reported cases shown as clickable dots on the map.
+// Returns only currently-active cases. Kept deterministic (no Date.now in the
+// render path) to avoid SSR/hydration drift.
+//
+// Supabase equivalent (teammate wires this later):
+//   const { data } = await supabase
+//     .from("active_cases")
+//     .select("*")
+//     .eq("status", "active")
+//     .gt("expires_at", new Date().toISOString());
+export const getActiveCases = (): ActiveCase[] =>
+  activeCases.filter((c) => c.status === "active");
+
+// Dot/accent colour by case type — matches the map legend and filters.
+export const caseTypeColor: Record<CaseType, string> = {
+  dengue: "#ef4444",
+  covid: "#3b82f6",
+  flu: "#f59e0b",
+  heatstroke: "#f97316",
+  foodborne: "#22c55e",
+  other: "#a855f7",
+};
+
+export const caseTypeLabel: Record<CaseType, string> = {
+  dengue: "Dengue",
+  covid: "COVID-19",
+  flu: "Influenza",
+  heatstroke: "Heatstroke",
+  foodborne: "Foodborne",
+  other: "Other",
+};
+
+// Dot/accent colour for citizen reports, keyed by the report type the user
+// picked (independent of the disease caseType used by the legend filters).
+export const reportTypeColor: Record<ReportTypeId, string> = {
+  symptom: "#ef4444", // red
+  exposure: "#f97316", // orange
+  positive: "#ef4444", // red
+  crowded: "#3b82f6", // blue
+  disaster: "#eab308", // yellow
+  other: "#9ca3af", // grey
+};
+
+export const reportTypeLabel: Record<ReportTypeId, string> = {
+  symptom: "Symptom",
+  exposure: "Exposure",
+  positive: "Positive Test",
+  crowded: "Crowded Area",
+  disaster: "Natural Disaster",
+  other: "Others",
+};
 export const getHighRiskAlert = () => highRiskAlert;
 export const getNewsUpdates = () => newsUpdates;
 export const getHospitals = (): Hospital[] => hospitals;

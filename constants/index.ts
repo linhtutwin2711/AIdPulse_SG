@@ -1,6 +1,7 @@
 import type { ReportType, Volunteer } from "@/types";
 
 export * from "./cases";
+export * from "./active-cases";
 export * from "./countries";
 export * from "./hospitals";
 export * from "./updates";
@@ -20,6 +21,7 @@ export const reportTypes: ReportType[] = [
   { id: "exposure", label: "Exposure", description: "Close contact with a confirmed or suspected case." },
   { id: "positive", label: "Positive Test", description: "Your positive COVID/ART/PCR-confirmed test result." },
   { id: "crowded", label: "Crowded Area", description: "Crowded place where safety measures are not observed." },
+  { id: "disaster", label: "Natural Disaster", description: "Flood, fire, haze, fallen tree or other hazard in your area." },
   { id: "other", label: "Others", description: "Any other concern related to public health." },
 ];
 

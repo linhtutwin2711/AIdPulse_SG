@@ -4,8 +4,10 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { RoleProvider } from "@/components/providers/role-provider";
 import { ProfileProvider } from "@/components/providers/profile-provider";
+import { CasesProvider } from "@/components/providers/cases-provider";
 import { UpdatesProvider } from "@/components/providers/updates-provider";
 import { MessagesProvider } from "@/components/providers/messages-provider";
+import { SettingsProvider } from "@/components/providers/settings-provider";
 import { AIProvider } from "@/components/ai-assistant/ai-context";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
@@ -24,11 +26,15 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <RoleProvider>
           <ProfileProvider>
-            <UpdatesProvider>
-              <MessagesProvider>
-                <AIProvider>{children}</AIProvider>
-              </MessagesProvider>
-            </UpdatesProvider>
+            <CasesProvider>
+              <UpdatesProvider>
+                <MessagesProvider>
+                  <SettingsProvider>
+                    <AIProvider>{children}</AIProvider>
+                  </SettingsProvider>
+                </MessagesProvider>
+              </UpdatesProvider>
+            </CasesProvider>
           </ProfileProvider>
         </RoleProvider>
       </body>

@@ -171,6 +171,15 @@
   }
 }
 
+/* Accessibility: honour the "Reduce motion" setting (and the OS preference). */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+}
+
 /* Hospital teardrop liquid-fill marker (Leaflet divIcon + reusable React node) */
 .leaflet-div-icon.hm-divicon {
   background: transparent;
@@ -178,6 +187,7 @@
 }
 .hpin {
   position: relative;
+  display: inline-block;
   width: 64px;
   height: 80px;
 }
@@ -220,6 +230,37 @@
   font-weight: 700;
   white-space: nowrap;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+/* Compact circular hospital badge (list rows) */
+.hbadge {
+  position: relative;
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 9999px;
+  border: 2px solid #3b82f6;
+  background: #14161d;
+}
+.hbadge-fill {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  opacity: 0.5;
+}
+.hbadge-h {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+}
+.hbadge-selected {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
 }
 
 /* Leaflet renders its own panes; keep them dark and rounded inside our cards */

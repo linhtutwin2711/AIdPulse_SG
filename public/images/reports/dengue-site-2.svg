@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a241f"/>
+      <stop offset="1" stop-color="#1a140e"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" fill="url(#g)"/>
+  <rect x="40" y="80" width="34" height="44" rx="3" fill="#7c5e3b" opacity="0.7"/>
+  <rect x="84" y="92" width="28" height="32" rx="3" fill="#9a7a4f" opacity="0.7"/>
+  <ellipse cx="57" cy="80" rx="17" ry="6" fill="#3b82f6" opacity="0.5"/>
+  <text x="80" y="28" fill="#c8b59f" font-family="sans-serif" font-size="12" text-anchor="middle">Breeding site</text>
+</svg>

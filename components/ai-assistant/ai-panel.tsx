@@ -30,29 +30,35 @@ export function AIPanel() {
 
   return (
     <>
-      {/* Scrim */}
+      {/* Scrim — mobile only (full-screen drawer). On desktop the drawer sits
+          beside the content, so no scrim and the page stays interactive. */}
       <div
         onClick={() => setOpen(false)}
         className={cn(
-          "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity",
+          "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity lg:hidden",
           open ? "opacity-100" : "pointer-events-none opacity-0"
         )}
       />
-      {/* Slide-in panel */}
+      {/* Floating side drawer:
+          - mobile: full-screen
+          - desktop (lg+): fixed 380px column docked to the right, below the nav,
+            with a 24px gutter — never covering the map or hospital panel. */}
       <aside
         className={cn(
-          "fixed top-0 right-0 z-50 flex h-dvh w-full max-w-md flex-col border-l border-border bg-popover shadow-2xl transition-transform duration-300",
-          open ? "translate-x-0" : "translate-x-full"
+          "fixed z-50 flex flex-col bg-popover shadow-2xl transition-transform duration-300",
+          "inset-y-0 right-0 w-full max-w-md border-l border-border",
+          "lg:inset-y-auto lg:top-[84px] lg:bottom-6 lg:right-6 lg:w-[360px] lg:max-w-none lg:rounded-2xl lg:border",
+          open ? "translate-x-0" : "translate-x-[120%]"
         )}
         aria-hidden={!open}
       >
-        <header className="flex items-center justify-between border-b border-border px-5 py-4">
+        <header className="flex items-center justify-between border-b border-border px-5 py-4 lg:rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-full bg-info/15 text-info">
               <Sparkles className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">AI Assistant</p>
+              <p className="text-sm font-semibold">AidPulse Assistant</p>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="size-1.5 rounded-full bg-success" /> Online
               </p>
@@ -125,7 +131,7 @@ export function AIPanel() {
           )}
         </div>
 
-        <div className="border-t border-border p-4">
+        <div className="border-t border-border p-4 lg:rounded-b-2xl">
           <form
             onSubmit={(e) => {
               e.preventDefault();
