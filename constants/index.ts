@@ -1,6 +1,7 @@
 import type { ReportType, Volunteer } from "@/types";
 
 export * from "./cases";
+export * from "./countries";
 export * from "./hospitals";
 export * from "./updates";
 export * from "./missions";

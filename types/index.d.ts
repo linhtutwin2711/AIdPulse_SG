@@ -13,15 +13,47 @@ export interface Alert {
   message: string;
   severity: Severity;
   updatedAgo: string;
+  // Rich detail shown in the high-risk alert modal.
+  riskLevel?: string;
+  distanceKm?: number;
+  activeCases?: number;
+  details?: string;
+  precautions?: string[];
+  nearbyAreas?: string[];
 }
 
 export interface NewsUpdate {
   id: string;
   title: string;
-  source: string;
+  source: string; // label, e.g. "NEA Alert" / "AidPulse Update"
+  description: string;
   ago: string;
-  image?: string;
+  image: string;
   live?: boolean;
+  comments: number;
+  reposts: number;
+  views: string; // e.g. "12.4K"
+}
+
+export interface ReplyItem {
+  id: string;
+  author: string;
+  initials: string;
+  text: string;
+  time: string;
+  self?: boolean;
+  edited?: boolean;
+}
+
+export interface CommentItem {
+  id: string;
+  author: string;
+  initials: string;
+  text: string;
+  time: string;
+  self?: boolean;
+  edited?: boolean;
+  replies: ReplyItem[];
 }
 
 export interface CaseStats {
@@ -50,6 +82,13 @@ export interface Hospital {
   name: string;
   lat: number;
   lng: number;
+  occupancy: number; // 0–100 (%)
+  totalBeds: number;
+  occupied: number;
+  available: number;
+  type?: string;
+  address?: string;
+  phone?: string;
   departments: Department[];
 }
 

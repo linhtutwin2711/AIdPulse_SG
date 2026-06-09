@@ -44,13 +44,17 @@ export const getConversations = (): Conversation[] => conversations;
 export const getConversation = (id: string) =>
   conversations.find((c) => c.id === id);
 
-// Aggregate hospital bed availability across departments.
+// Hospital bed availability summary. Occupancy bands: high > 80, medium 50–80, low < 50.
 export const bedSummary = (h: Hospital) => {
-  const total = h.departments.reduce((s, d) => s + d.total, 0);
-  const occupied = h.departments.reduce((s, d) => s + d.occupied, 0);
-  const available = total - occupied;
-  const ratio = available / total;
+  const total = h.totalBeds;
+  const occupied = h.occupied;
+  const available = h.available;
+  const occupancy = h.occupancy;
   const status: "available" | "limited" | "full" =
-    ratio > 0.3 ? "available" : ratio > 0.1 ? "limited" : "full";
-  return { total, occupied, available, ratio, status };
+    occupancy > 80 ? "full" : occupancy >= 50 ? "limited" : "available";
+  return { total, occupied, available, occupancy, status };
 };
+
+export type OccupancyBand = "high" | "medium" | "low";
+export const occupancyBand = (occupancy: number): OccupancyBand =>
+  occupancy > 80 ? "high" : occupancy >= 50 ? "medium" : "low";

@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { aiTopics } from "@/constants";
+import { useProfile } from "@/components/providers/profile-provider";
 import { cn } from "@/lib/utils";
 import { useAI } from "./ai-context";
 
@@ -19,6 +20,7 @@ const ICONS = { Info, HeartPulse, Users, ShieldCheck, MessageCircle } as const;
 
 export function AIPanel() {
   const { open, setOpen, messages, sending, send } = useAI();
+  const { displayName } = useProfile();
   const [draft, setDraft] = useState("");
 
   const submit = () => {
@@ -69,7 +71,7 @@ export function AIPanel() {
           {messages.length === 0 ? (
             <>
               <div>
-                <h3 className="text-lg font-semibold">Hello! 👋</h3>
+                <h3 className="text-lg font-semibold">Hello, {displayName}! 👋</h3>
                 <p className="text-sm text-muted-foreground">
                   How can I help you today? Pick a topic or ask anything.
                 </p>

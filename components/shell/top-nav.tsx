@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, FileText, Map as MapIcon, Sparkles } from "lucide-react";
+import { Bell, FileText, Map as MapIcon } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
-import { useAI } from "@/components/ai-assistant/ai-context";
-import { useRole } from "@/components/providers/role-provider";
-import { getCurrentUser } from "@/lib/data";
+import { useProfile } from "@/components/providers/profile-provider";
 import { roleAccent, roleLabel } from "@/lib/ui";
 import { cn } from "@/lib/utils";
+import type { Role } from "@/types";
 
 const TABS = [
   { href: "/dashboard", label: "Alerts", icon: Bell },
@@ -18,15 +17,20 @@ const TABS = [
 
 export function TopNav() {
   const pathname = usePathname();
-  const { toggle } = useAI();
-  const { role } = useRole();
-  const user = getCurrentUser();
+  const { displayName, initials } = useProfile();
 
-  // Role-aware home tab: each role has its own dashboard.
+  // The displayed role reflects the section you're actually in — not a sticky
+  // flag. On the shared/citizen pages you're a normal user with no role title.
+  const section: Role = pathname.startsWith("/volunteer")
+    ? "volunteer"
+    : pathname.startsWith("/officer")
+      ? "officer"
+      : "citizen";
+
   const homeHref =
-    role === "volunteer"
+    section === "volunteer"
       ? "/volunteer/dashboard"
-      : role === "officer"
+      : section === "officer"
         ? "/officer/dashboard"
         : "/dashboard";
 
@@ -54,20 +58,16 @@ export function TopNav() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={toggle}
-            className="flex items-center gap-2 rounded-full border border-info/40 bg-info/10 px-3 py-2 text-sm font-medium text-info transition-colors hover:bg-info/20"
-          >
-            <Sparkles className="size-4" />
-            <span className="max-sm:hidden">AI Assistant</span>
-          </button>
           <div className="flex items-center gap-2.5">
             <div className="flex size-9 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
-              {user.initials}
+              {initials}
             </div>
             <div className="leading-tight max-md:hidden">
-              <p className="text-sm font-medium">{user.fullName}</p>
-              <p className={cn("text-xs", roleAccent[role])}>{roleLabel[role]}</p>
+              <p className="text-sm font-medium">{displayName}</p>
+              {/* A normal user has no role title — it appears only in a role section. */}
+              {section !== "citizen" && (
+                <p className={cn("text-xs", roleAccent[section])}>{roleLabel[section]}</p>
+              )}
             </div>
           </div>
         </div>

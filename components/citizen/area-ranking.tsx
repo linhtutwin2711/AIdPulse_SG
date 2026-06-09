@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Map as MapIcon } from "lucide-react";
 import { getAreaRanks } from "@/lib/data";
 import { severityDot } from "@/lib/ui";
 
@@ -8,7 +10,12 @@ export function AreaRanking() {
     <div className="surface p-5">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">Areas by Active Cases</h3>
-        <button className="text-sm font-medium text-info hover:underline">View All</button>
+        <Link
+          href="/map"
+          className="flex items-center gap-1 text-sm font-medium text-info hover:underline"
+        >
+          <MapIcon className="size-4" /> View in Map
+        </Link>
       </div>
 
       <ul className="mt-4 space-y-3">

@@ -171,6 +171,57 @@
   }
 }
 
+/* Hospital teardrop liquid-fill marker (Leaflet divIcon + reusable React node) */
+.leaflet-div-icon.hm-divicon {
+  background: transparent;
+  border: none;
+}
+.hpin {
+  position: relative;
+  width: 64px;
+  height: 80px;
+}
+.hpin svg {
+  display: block;
+  width: 64px;
+  height: 80px;
+}
+.hpin.is-selected svg {
+  filter: drop-shadow(0 0 5px #3b82f6) drop-shadow(0 0 11px rgba(59, 130, 246, 0.6));
+}
+.hpin-h {
+  position: absolute;
+  left: 50%;
+  top: 9px;
+  transform: translateX(-50%);
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+}
+.hpin-pct {
+  position: absolute;
+  left: 50%;
+  top: 41px;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: rgba(20, 12, 4, 0.85);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
 /* Leaflet renders its own panes; keep them dark and rounded inside our cards */
 .leaflet-container {
   background: #0a0b0e;

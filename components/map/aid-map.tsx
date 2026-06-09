@@ -17,9 +17,10 @@ const MapInner = dynamic(() => import("./map-inner"), {
 export function AidMap(props: {
   cases: CaseMarker[];
   hospitals: Hospital[];
-  showCases: boolean;
-  showHospitals: boolean;
+  selectedId: string | null;
   onSelectHospital: (h: Hospital) => void;
+  flyTarget: [number, number] | null;
+  flyNonce: number;
 }) {
   return <MapInner {...props} />;
 }

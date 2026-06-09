@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Bell,
   BadgeCheck,
@@ -12,40 +12,86 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { PrivacyPolicy } from "@/components/legal/privacy-policy";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-function Toggle({
-  on,
-  onToggle,
-}: {
-  on: boolean;
-  onToggle: () => void;
-}) {
+type Perm = "prompt" | "granted" | "denied";
+
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-pressed={on}
       className={cn(
-        "relative h-6 w-11 rounded-full transition-colors",
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors",
         on ? "bg-danger" : "bg-secondary"
       )}
     >
       <span
         className={cn(
-          "absolute top-0.5 size-5 rounded-full bg-white transition-transform",
-          on ? "translate-x-5" : "translate-x-0.5"
+          "inline-block size-5 rounded-full bg-white shadow-sm transition-transform duration-200",
+          on ? "translate-x-5" : "translate-x-0"
         )}
       />
     </button>
   );
 }
 
+function StatusNote({ state }: { state: Perm }) {
+  if (state === "granted")
+    return <p className="mt-0.5 text-xs font-medium text-success">✓ Allowed</p>;
+  if (state === "denied")
+    return (
+      <p className="mt-0.5 text-xs font-medium text-danger">
+        Blocked — enable it in your browser settings
+      </p>
+    );
+  return <p className="mt-0.5 text-xs text-muted-foreground">Tap to allow</p>;
+}
+
 export default function PermissionsPage() {
   const router = useRouter();
-  const [location, setLocation] = useState(true);
-  const [notifications, setNotifications] = useState(true);
+  const [loc, setLoc] = useState<Perm>("prompt");
+  const [notif, setNotif] = useState<Perm>("prompt");
+
+  // Reflect any already-decided permissions without re-prompting.
+  useEffect(() => {
+    if ("Notification" in window) {
+      setNotif(Notification.permission === "default" ? "prompt" : (Notification.permission as Perm));
+    }
+    navigator.permissions
+      ?.query({ name: "geolocation" as PermissionName })
+      .then((r) => {
+        setLoc(r.state as Perm);
+        r.onchange = () => setLoc(r.state as Perm);
+      })
+      .catch(() => {});
+  }, []);
+
+  const requestLocation = () => {
+    if (loc === "granted") return setLoc("prompt"); // visual off (browser keeps the grant)
+    if (!("geolocation" in navigator)) return setLoc("denied");
+    navigator.geolocation.getCurrentPosition(
+      () => setLoc("granted"),
+      (err) => setLoc(err.code === err.PERMISSION_DENIED ? "denied" : "prompt"),
+      { timeout: 10000 }
+    );
+  };
+
+  const requestNotifications = async () => {
+    if (notif === "granted") return setNotif("prompt"); // visual off
+    if (!("Notification" in window)) return setNotif("denied");
+    const res = await Notification.requestPermission();
+    if (res === "granted") {
+      setNotif("granted");
+      // A real notification proves the permission actually works.
+      new Notification("AidPulse SG", { body: "Emergency alerts are now enabled." });
+    } else {
+      setNotif(res === "default" ? "prompt" : "denied");
+    }
+  };
 
   return (
     <div className="relative min-h-dvh">
@@ -101,9 +147,10 @@ export default function PermissionsPage() {
                   <p className="text-sm text-muted-foreground">
                     See nearby risks, hospitals &amp; volunteers
                   </p>
+                  <StatusNote state={loc} />
                 </div>
               </div>
-              <Toggle on={location} onToggle={() => setLocation((v) => !v)} />
+              <Toggle on={loc === "granted"} onToggle={requestLocation} />
             </div>
 
             <div className="surface flex items-center justify-between p-5">
@@ -116,9 +163,10 @@ export default function PermissionsPage() {
                   <p className="text-sm text-muted-foreground">
                     Get important alerts and updates
                   </p>
+                  <StatusNote state={notif} />
                 </div>
               </div>
-              <Toggle on={notifications} onToggle={() => setNotifications((v) => !v)} />
+              <Toggle on={notif === "granted"} onToggle={requestNotifications} />
             </div>
           </div>
 
@@ -130,7 +178,7 @@ export default function PermissionsPage() {
             <CheckCircle2 className="size-5" /> Continue
           </Button>
 
-          <p className="mt-3 text-center text-sm text-danger">Privacy Policy</p>
+          <PrivacyPolicy className="mt-3" />
 
           <div className="surface-muted mt-4 flex items-start gap-3 p-4 text-sm text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0 text-info" />
