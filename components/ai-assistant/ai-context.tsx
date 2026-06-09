@@ -22,30 +22,47 @@ const AIContext = createContext<AIContextValue | null>(null);
 let idSeq = 0;
 const nextId = () => `m${++idSeq}`;
 
+// Stable per-tab id so the n8n workflow can keep conversation memory.
+const sessionId = `web-${idSeq}-${Math.floor(Date.now())}`;
+
 export function AIProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [sending, setSending] = useState(false);
 
-  const send = useCallback((text: string) => {
+  const send = useCallback(async (text: string) => {
     const clean = text.trim();
     if (!clean) return;
     setMessages((prev) => [...prev, { id: nextId(), role: "user", text: clean }]);
     setSending(true);
 
-    // TODO(n8n): replace this canned reply with a POST to the n8n webhook
-    // (or stream from the route handler). Keep the same message shape.
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: clean, sessionId }),
+      });
+      const data = await res.json();
+      const reply =
+        typeof data?.reply === "string" && data.reply
+          ? data.reply
+          : "Sorry, I'm having trouble responding right now. Please try again.";
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId(), role: "assistant", text: reply },
+      ]);
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
           id: nextId(),
           role: "assistant",
-          text: "Thanks for reaching out. I'm AidPulse's assistant — I can help with health guidance, nearby services, and safety steps during an emergency. (Live answers are coming soon.)",
+          text: "I couldn't reach the assistant. Please check your connection and try again.",
         },
       ]);
+    } finally {
       setSending(false);
-    }, 700);
+    }
   }, []);
 
   const toggle = useCallback(() => setOpen((v) => !v), []);

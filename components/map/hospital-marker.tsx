@@ -46,29 +46,40 @@ export function HospitalMarker({
   const color = hospitalFillColor(occupancy);
   const top = 80 - (occupancy / 100) * 80;
   const clip = `pin-r-${slug(name)}`;
+  const boxStyle = { width: 64 * scale, height: 80 * scale, border: "none", background: "transparent", padding: 0 } as const;
+  const pin = (
+    <div className={cn("hpin", selected && "is-selected")} style={{ transformOrigin: "top left", transform: `scale(${scale})` }}>
+      <svg viewBox="0 0 64 80" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id={clip}>
+            <path d={PIN} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${clip})`}>
+          <rect x="0" y="0" width="64" height="80" fill="#14161d" />
+          <rect x="0" y={top} width="64" height={80 - top} fill={color} opacity="0.85" />
+        </g>
+        <path d={PIN} fill="none" stroke={color} strokeWidth="3" />
+      </svg>
+      <div className="hpin-h">H</div>
+      <div className="hpin-pct">{occupancy}%</div>
+    </div>
+  );
+
+  // When no handler is given the marker is decorative (e.g. inside a list row
+  // that is itself a <button>) — render a non-interactive <span> to avoid
+  // nesting a <button> inside a <button> (invalid HTML / hydration error).
+  if (!onClick) {
+    return (
+      <span title={name} style={{ ...boxStyle, display: "inline-block" }}>
+        {pin}
+      </span>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={name}
-      style={{ width: 64 * scale, height: 80 * scale, border: "none", background: "transparent", padding: 0 }}
-    >
-      <div className={cn("hpin", selected && "is-selected")} style={{ transformOrigin: "top left", transform: `scale(${scale})` }}>
-        <svg viewBox="0 0 64 80" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <clipPath id={clip}>
-              <path d={PIN} />
-            </clipPath>
-          </defs>
-          <g clipPath={`url(#${clip})`}>
-            <rect x="0" y="0" width="64" height="80" fill="#14161d" />
-            <rect x="0" y={top} width="64" height={80 - top} fill={color} opacity="0.85" />
-          </g>
-          <path d={PIN} fill="none" stroke={color} strokeWidth="3" />
-        </svg>
-        <div className="hpin-h">H</div>
-        <div className="hpin-pct">{occupancy}%</div>
-      </div>
+    <button type="button" onClick={onClick} title={name} style={boxStyle}>
+      {pin}
     </button>
   );
 }
