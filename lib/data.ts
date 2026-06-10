@@ -518,7 +518,7 @@ const REPORT_CASE: Record<ReportTypeId, { caseType: CaseType; title: string; ris
 export async function fetchPublicReports(): Promise<ActiveCase[]> {
   const { data, error } = await supabase
     .from("v_public_reports")
-    .select("id, report_type, location_text, latitude, longitude, details, created_at")
+    .select("id, report_type, location_text, latitude, longitude, details, created_at, expires_at")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -546,6 +546,7 @@ export async function fetchPublicReports(): Promise<ActiveCase[]> {
         reportedBy: "Citizen Report",
         nearbyCases: 0,
         createdAt: r.created_at ?? undefined,
+        expiresAt: r.expires_at ?? undefined,
       };
     });
 }
@@ -559,6 +560,7 @@ export async function submitReport(input: {
   details: string;
   contactInfo?: string;
   photoUrls?: string[];
+  expiresAt?: string;
 }): Promise<string> {
   const { data, error } = await supabase.rpc("submit_report", {
     p_report_type: DB_REPORT_TYPE[input.reportType],
@@ -568,6 +570,7 @@ export async function submitReport(input: {
     p_details: input.details,
     p_contact_info: input.contactInfo ?? null,
     p_photo_urls: input.photoUrls ?? [],
+    p_expires_at: input.expiresAt ?? null,
   });
 
   if (error) throw error;

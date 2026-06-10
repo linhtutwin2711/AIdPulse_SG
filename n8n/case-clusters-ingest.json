@@ -90,7 +90,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Record today's totals so the dashboard can show a real day-over-day delta.\n// Yesterday's snapshot stays frozen; today's is refreshed on every run.\nconst rows = ($('Build case_clusters rows').item.json.rows) || [];\nlet a = 0, c = 0;\nfor (const r of rows) { a += r.active_cases || 0; c += r.critical_cases || 0; }\nconst d = new Date().toISOString().slice(0, 10);\nreturn [{ json: { snapshot_date: d, active_cases: a, critical_cases: c } }];"
+        "jsCode": "// Record today's totals so the dashboard can show a real day-over-day delta.\n// Yesterday's snapshot stays frozen; today's is refreshed on every run.\nconst rows = ($('Build case_clusters rows').item.json.rows) || [];\nlet a = 0, c = 0;\nfor (const r of rows) { a += r.active_cases || 0; c += r.critical_cases || 0; }\nconst d = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });\nreturn [{ json: { snapshot_date: d, active_cases: a, critical_cases: c } }];"
       },
       "id": "snapshot",
       "name": "Build daily snapshot",

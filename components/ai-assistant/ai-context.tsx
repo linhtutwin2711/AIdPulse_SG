@@ -24,6 +24,7 @@ const nextId = () => `m${++idSeq}`;
 
 // Stable per-tab id so the n8n workflow can keep conversation memory.
 const sessionId = `web-${idSeq}-${Math.floor(Date.now())}`;
+const DEV = process.env.NODE_ENV !== "production";
 
 export function AIProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -32,29 +33,27 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
   const send = useCallback(async (text: string) => {
     const clean = text.trim();
-    console.log("[AI] send() called with:", { text, clean, sessionId });
+    // Metadata only (no prompt/response text or raw session id); dev-gated.
+    if (DEV) console.log("[AI] send()", { length: clean.length });
     if (!clean) {
-      console.log("[AI] send() aborted — empty message");
+      if (DEV) console.log("[AI] send() aborted — empty message");
       return;
     }
     setMessages((prev) => [...prev, { id: nextId(), role: "user", text: clean }]);
     setSending(true);
 
     try {
-      console.log("[AI] POST /api/chat →", { message: clean, sessionId });
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: clean, sessionId }),
       });
-      console.log("[AI] /api/chat status:", res.status, res.ok);
       const data = await res.json();
-      console.log("[AI] /api/chat response body:", data);
+      if (DEV) console.log("[AI] /api/chat status:", res.status, "hasReply:", Boolean(data?.reply));
       const reply =
         typeof data?.reply === "string" && data.reply
           ? data.reply
           : "Sorry, I'm having trouble responding right now. Please try again.";
-      console.log("[AI] resolved reply:", reply);
       setMessages((prev) => [
         ...prev,
         { id: nextId(), role: "assistant", text: reply },
@@ -70,7 +69,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
         },
       ]);
     } finally {
-      console.log("[AI] send() done — sending=false");
+      if (DEV) console.log("[AI] send() done");
       setSending(false);
     }
   }, []);

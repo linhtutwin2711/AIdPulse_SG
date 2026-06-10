@@ -101,6 +101,7 @@ export function CasesProvider({ children }: { children: React.ReactNode }) {
       lng: item.lng,
       details: item.description,
       contactInfo: contactInfo || undefined,
+      expiresAt: item.expiresAt,
     }).catch((err) => console.error("CasesProvider submitReport failed:", err));
 
     return item;
