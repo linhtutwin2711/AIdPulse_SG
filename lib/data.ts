@@ -317,28 +317,21 @@ export async function getLatestUpdates(limit = 5): Promise<LatestUpdate[]> {
   }));
 }
 
-// Pick a display image for an update. Real ingested articles (e.g. CNA) carry
-// their own image_url; gov/RSS rows that don't get a themed stock photo keyed
-// off the headline so the feed always shows an image instead of a placeholder.
-// The lock keeps each card's image stable across renders.
-const NEWS_IMAGE_KEYWORDS: { kw: string[]; q: string }[] = [
-  { kw: ["dengue", "mosquito", "nea"], q: "mosquito,dengue" },
-  { kw: ["covid", "variant", "crowd", "mask"], q: "coronavirus,mask" },
-  { kw: ["vaccin", "booster", "immun"], q: "vaccine,vaccination" },
-  { kw: ["flu", "influenza", "fever"], q: "flu,fever" },
-  { kw: ["heat", "safety", "scdf", "weather"], q: "heatwave,weather" },
+// Pick a display image for an update. The article's own image_url wins when
+// present; otherwise we use a bundled, themed local image keyed off the
+// headline so the feed always shows a relevant graphic that loads reliably
+// (most health feeds, e.g. Google News, carry no image).
+const NEWS_IMAGE_FALLBACKS: { kw: string[]; img: string }[] = [
+  { kw: ["dengue", "mosquito", "aedes"], img: "/images/news/health-dengue.svg" },
+  { kw: ["covid", "coronavirus", "variant", "sars"], img: "/images/news/health-covid.svg" },
+  { kw: ["vaccin", "booster", "immunis", "immuniz", "jab"], img: "/images/news/health-vaccine.svg" },
+  { kw: ["flu", "influenza", "fever", "respiratory", "cough"], img: "/images/news/health-flu.svg" },
 ];
-function stableLock(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h % 1000;
-}
 export function newsImage(raw: string | null | undefined, text = ""): string {
   if (raw && raw.trim()) return raw;
   const hay = text.toLowerCase();
-  const match = NEWS_IMAGE_KEYWORDS.find((m) => m.kw.some((k) => hay.includes(k)));
-  const q = match?.q ?? "singapore,healthcare";
-  return `https://loremflickr.com/640/360/${encodeURIComponent(q)}?lock=${stableLock(text || q)}`;
+  const match = NEWS_IMAGE_FALLBACKS.find((m) => m.kw.some((k) => hay.includes(k)));
+  return match?.img ?? "/images/news/health-default.svg";
 }
 
 // "View All" feed — latest_updates mapped into the NewsUpdate shape the

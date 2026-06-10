@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360" role="img" aria-label="Public health">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#065f46"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#g)"/>
+  <g transform="translate(320 172)">
+    <circle r="74" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-width="8" opacity="0.92"/>
+    <path d="M-34 -12 h 22 v -22 h 24 v 22 h 22 v 24 h -22 v 22 h -24 v -22 h -22 Z"
+          fill="#ffffff" opacity="0.92"/>
+  </g>
+  <rect x="24" y="304" width="180" height="34" rx="17" fill="#000000" fill-opacity="0.28"/>
+  <text x="44" y="327" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#ffffff">Public Health</text>
+</svg>

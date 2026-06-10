@@ -8,33 +8,39 @@
 
 ## latest-updates-ingest.json (current)
 
-**Schedule:** every 15 minutes. **Sources:** RSS (MOH, NEA, Gov.sg, SCDF, CNA
-Health) + the data.gov.sg API. **Flow:** fetch → normalize to a common row
-shape → de-dupe by `source_url` → upsert into `latest_updates`
+**Schedule:** every 15 minutes. **Source:** Google News RSS, queried for
+Singapore public-health topics (dengue / COVID / flu / vaccine / outbreak /
+hospital / MOH / NEA / public health). **Flow:** fetch → normalize + **health
+keyword filter** → de-dupe by `source_url` → upsert into `latest_updates`
 (`on_conflict=source_url`, `Prefer: resolution=merge-duplicates`). The UNIQUE
 constraint on `source_url` is the final dedupe guard, so re-runs never duplicate.
+
+Why Google News: government agencies (MOH/NEA) don't publish reliable RSS, and
+general outlets (e.g. CNA) rarely have Singapore-health items on a given day. The
+Google News query aggregates real health articles from many outlets. These feeds
+carry **no image**, so `image_url` is left null and the app renders a themed
+local image (`public/images/news/health-*.svg`) keyed off the headline — the
+article's own image is used instead whenever a feed does provide one.
 
 ### Setup
 1. Supabase → **Settings → API → `service_role` key**. Replace both
    `<SUPABASE_SERVICE_ROLE_KEY>` placeholders. service_role is required (RLS
    only grants anon **read**; writes bypass RLS). Keep it in n8n only — never in
    the browser app. Prefer an n8n **Credential** over an inline value.
-2. **Verify the RSS feed URLs** in the *RSS sources* node — government feed URLs
-   change; CNA Health is included as a known-working fallback. Add a source by
-   appending a `{ json: { url: '…' } }` line; `source_name` is auto-derived from
-   the link domain.
+2. (Optional) tweak the query keywords in the *Google News (SG health)* node
+   URL, or add another RSS source — the *Normalize + health filter* node already
+   keeps only health items, so off-topic feeds are safe to add.
 3. Import `latest-updates-ingest.json`, run once, confirm rows land in
    `latest_updates`, then **Activate**.
 
 ### Row mapping (RSS → latest_updates)
 | latest_updates | RSS field |
 |---|---|
-| `title` | `title` |
-| `summary` | `contentSnippet` / `summary` |
-| `content` | `content` |
-| `source_name` | derived from link domain |
+| `title` | `title` with the trailing " - Publisher" stripped |
+| `source_name` | the stripped publisher (or `creator`) |
 | `source_url` (UNIQUE) | `link` |
-| `category` | first `categories[]` (default `Health`) |
+| `image_url` | feed image if present, else null → themed local fallback |
+| `category` | `Health` |
 | `published_at` | `isoDate` / `pubDate` |
 
 ---

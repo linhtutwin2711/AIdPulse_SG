@@ -9,71 +9,39 @@
       "name": "Every 15 min",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-100, 200]
+      "position": [0, 200]
     },
     {
       "parameters": {
-        "jsCode": "// Singapore public-health RSS sources. Verify each agency's official feed URL\n// (gov feeds change); CNA Health is a reliable fallback. Add/remove freely.\nreturn [\n  { json: { url: 'https://www.moh.gov.sg/rss/news-highlights' } },\n  { json: { url: 'https://www.nea.gov.sg/rss/news' } },\n  { json: { url: 'https://www.gov.sg/feed' } },\n  { json: { url: 'https://www.scdf.gov.sg/rss/news' } },\n  { json: { url: 'https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml&category=10416' } }\n];"
-      },
-      "id": "sources",
-      "name": "RSS sources",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [140, 80]
-    },
-    {
-      "parameters": { "url": "={{ $json.url }}", "options": { "ignoreSSL": false } },
-      "id": "rss",
-      "name": "Read RSS feed",
-      "type": "n8n-nodes-base.rssFeedRead",
-      "typeVersion": 1.1,
-      "position": [380, 80],
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "jsCode": "// Normalize RSS entries -> latest_updates rows. source_name is derived from\n// the article link domain so no per-feed tagging is needed.\nfunction sourceFromUrl(u) {\n  try {\n    const h = new URL(u).hostname.replace(/^www\\./, '');\n    if (h.includes('moh.gov.sg')) return 'MOH';\n    if (h.includes('nea.gov.sg')) return 'NEA';\n    if (h.includes('scdf.gov.sg')) return 'SCDF';\n    if (h.includes('gov.sg')) return 'Gov.sg';\n    if (h.includes('channelnewsasia')) return 'CNA';\n    return h;\n  } catch (e) { return 'Gov.sg'; }\n}\nconst rows = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const link = j.link || j.guid;\n  if (!link || !j.title) continue;\n  function pickImg(o) { if (!o) return null; if (typeof o === 'string') return o; return (o.$ && o.$.url) || o.url || null; }\\n  const img = pickImg(j.enclosure) || pickImg(j['media:thumbnail']) || pickImg(j['media:content']) || pickImg(j.image) || null;\n  rows.push({\n    title: String(j.title).trim(),\n    summary: (j.contentSnippet || j.summary || '').toString().trim().slice(0, 500) || null,\n    content: j.content || null,\n    source_name: sourceFromUrl(link),\n    source_url: link,\n    category: Array.isArray(j.categories) ? j.categories[0] : (j.category || 'Health'),\n    location: 'Singapore',\n    severity: null,\n    image_url: img,\n    published_at: j.isoDate || j.pubDate || null\n  });\n}\nreturn rows.map((r) => ({ json: r }));"
-      },
-      "id": "normRss",
-      "name": "Normalize RSS",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [620, 80]
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "https://api-production.data.gov.sg/v2/public/api/datasets",
-        "sendQuery": true,
-        "queryParameters": { "parameters": [{ "name": "page", "value": "1" }] },
+        "url": "https://news.google.com/rss/search?q=Singapore%20%28dengue%20OR%20COVID%20OR%20influenza%20OR%20flu%20OR%20vaccine%20OR%20outbreak%20OR%20measles%20OR%20hospital%20OR%20MOH%20OR%20NEA%20OR%20%22public%20health%22%29%20when%3A30d&hl=en-SG&gl=SG&ceid=SG:en",
         "options": {}
       },
-      "id": "dataGov",
-      "name": "data.gov.sg API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [380, 360],
+      "id": "rss",
+      "name": "Google News (SG health)",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [240, 200],
       "continueOnFail": true
     },
     {
       "parameters": {
-        "jsCode": "// Normalize data.gov.sg datasets -> latest_updates rows (recently-updated\n// open datasets surfaced as updates). Optional source; safe if the API shape\n// changes (returns nothing rather than erroring).\nconst res = ($input.first() && $input.first().json) || {};\nconst list = (res.data && res.data.datasets) || res.datasets || [];\nconst rows = [];\nfor (const d of list.slice(0, 10)) {\n  if (!d || !d.datasetId || !d.name) continue;\n  rows.push({\n    title: d.name,\n    summary: (d.description || '').toString().slice(0, 500) || null,\n    content: d.description || null,\n    source_name: 'Data.gov.sg',\n    source_url: `https://data.gov.sg/datasets/${d.datasetId}/view`,\n    category: 'Open Data',\n    location: 'Singapore',\n    severity: null,\n    image_url: null,\n    published_at: d.lastUpdatedAt || d.createdAt || null\n  });\n}\nreturn rows.map((r) => ({ json: r }));"
+        "jsCode": "// Normalize Google News (or any RSS) entries -> latest_updates rows, keeping\n// only health items. Google News titles look like 'Headline - Publisher', so\n// we split the publisher off into source_name. These feeds carry no image, so\n// image_url is left null and the app fills a themed local image at render.\nconst RX = /\\b(dengue|covid|coronavirus|vaccin\\w*|influenza|flu|virus\\w*|hospitals?|outbreaks?|diseases?|measles|hfmd|mosquito\\w*|infections?|healthcare|health|wellness|booster|epidemic|pandemic|fever|diabetes|cancer|MOH|NEA|HSA|HPB)\\b/i;\nfunction pickImg(o){ if(!o) return null; if(typeof o==='string') return o; return (o.$ && o.$.url) || o.url || null; }\nconst rows = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const link = j.link || j.guid;\n  let title = (j.title || '').trim();\n  if (!link || !title) continue;\n  let source = j.creator || '';\n  const m = title.match(/^(.*?)\\s+-\\s+([^-]+)$/);\n  if (m) { title = m[1].trim(); if (!source) source = m[2].trim(); }\n  if (!RX.test(title + ' ' + (j.contentSnippet || ''))) continue; // health-only filter\n  rows.push({\n    title: title.slice(0, 300),\n    summary: null,\n    source_name: (source || 'Google News').slice(0, 60),\n    source_url: link,\n    category: 'Health',\n    location: 'Singapore',\n    severity: null,\n    image_url: pickImg(j.enclosure) || pickImg(j['media:thumbnail']) || pickImg(j['media:content']) || null,\n    published_at: j.isoDate || j.pubDate || null\n  });\n}\nreturn rows.map((r) => ({ json: r }));"
       },
-      "id": "normApi",
-      "name": "Normalize API",
+      "id": "normalize",
+      "name": "Normalize + health filter",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [620, 360]
+      "position": [480, 200]
     },
     {
       "parameters": {
-        "jsCode": "// Collect every normalized row into a single array, de-duped by source_url, so\n// the upsert is one request. (Supabase's UNIQUE(source_url) is the final guard.)\nconst seen = new Set();\nconst rows = [];\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (!r || !r.source_url || seen.has(r.source_url)) continue;\n  seen.add(r.source_url);\n  rows.push(r);\n}\nreturn [{ json: { rows } }];"
+        "jsCode": "// De-dupe by source_url and emit a single array so the upsert is one request.\n// Supabase's UNIQUE(source_url) is the final guard.\nconst seen = new Set();\nconst rows = [];\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (!r || !r.source_url || seen.has(r.source_url)) continue;\n  seen.add(r.source_url);\n  rows.push(r);\n}\nreturn [{ json: { rows: rows.slice(0, 15) } }];"
       },
       "id": "collect",
       "name": "Collect rows",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 200]
+      "position": [720, 200]
     },
     {
       "parameters": {
@@ -97,21 +65,13 @@
       "name": "Upsert to Supabase",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1100, 200]
+      "position": [960, 200]
     }
   ],
   "connections": {
-    "Every 15 min": {
-      "main": [[
-        { "node": "RSS sources", "type": "main", "index": 0 },
-        { "node": "data.gov.sg API", "type": "main", "index": 0 }
-      ]]
-    },
-    "RSS sources": { "main": [[{ "node": "Read RSS feed", "type": "main", "index": 0 }]] },
-    "Read RSS feed": { "main": [[{ "node": "Normalize RSS", "type": "main", "index": 0 }]] },
-    "Normalize RSS": { "main": [[{ "node": "Collect rows", "type": "main", "index": 0 }]] },
-    "data.gov.sg API": { "main": [[{ "node": "Normalize API", "type": "main", "index": 0 }]] },
-    "Normalize API": { "main": [[{ "node": "Collect rows", "type": "main", "index": 0 }]] },
+    "Every 15 min": { "main": [[{ "node": "Google News (SG health)", "type": "main", "index": 0 }]] },
+    "Google News (SG health)": { "main": [[{ "node": "Normalize + health filter", "type": "main", "index": 0 }]] },
+    "Normalize + health filter": { "main": [[{ "node": "Collect rows", "type": "main", "index": 0 }]] },
     "Collect rows": { "main": [[{ "node": "Upsert to Supabase", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" }
