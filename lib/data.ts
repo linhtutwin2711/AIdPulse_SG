@@ -31,6 +31,7 @@ import type {
   NewsUpdate,
   Opportunity,
   ReportTypeId,
+  RiskLevel,
   Severity,
 } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
@@ -370,4 +371,110 @@ export async function fetchHospitals(): Promise<Hospital[]> {
         })),
       };
     });
+}
+
+// ---------------------------------------------------------------------------
+// LIVE Supabase accessors — citizen reports (Track Cases dots)
+//
+// Reads go through the v_public_reports VIEW (non-PII columns only); writes go
+// through the submit_report() SECURITY DEFINER RPC so contact_info is
+// write-only and anon never needs direct table access. See the Supabase
+// migration for both objects.
+// ---------------------------------------------------------------------------
+
+// report_type enum on the DB ⇄ the ReportTypeId the UI uses. "disaster" has no
+// DB enum member, so it stores as "others".
+const DB_REPORT_TYPE: Record<ReportTypeId, string> = {
+  symptom: "symptoms",
+  exposure: "exposure",
+  positive: "positive_test",
+  crowded: "crowded_area",
+  disaster: "others",
+  other: "others",
+};
+function reportTypeFromDb(t: string): ReportTypeId {
+  switch (t) {
+    case "symptoms":
+      return "symptom";
+    case "exposure":
+      return "exposure";
+    case "positive_test":
+      return "positive";
+    case "crowded_area":
+      return "crowded";
+    default:
+      return "other";
+  }
+}
+
+// Display metadata per report type — mirrors CASE_OF on the report page so a
+// report fetched from Supabase looks the same as one just submitted locally.
+const REPORT_CASE: Record<ReportTypeId, { caseType: CaseType; title: string; risk: RiskLevel }> = {
+  symptom: { caseType: "flu", title: "Influenza Report", risk: "medium" },
+  exposure: { caseType: "covid", title: "COVID-19 Report", risk: "medium" },
+  positive: { caseType: "covid", title: "COVID-19 Report", risk: "high" },
+  crowded: { caseType: "covid", title: "COVID-19 Report", risk: "low" },
+  disaster: { caseType: "other", title: "Natural Disaster Report", risk: "high" },
+  other: { caseType: "other", title: "Community Report", risk: "low" },
+};
+
+// Reported case dots — VIEW v_public_reports (non-PII, status <> 'closed').
+// Photos aren't exposed by the view, so imageUrls is empty for live reports.
+export async function fetchPublicReports(): Promise<ActiveCase[]> {
+  const { data, error } = await supabase
+    .from("v_public_reports")
+    .select("id, report_type, location_text, latitude, longitude, details, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  if (!data) return [];
+
+  return data
+    .filter((r) => r.latitude != null && r.longitude != null)
+    .map((r) => {
+      const reportType = reportTypeFromDb(r.report_type);
+      const meta = REPORT_CASE[reportType];
+      return {
+        id: String(r.id),
+        caseType: meta.caseType,
+        reportType,
+        title: meta.title,
+        locationName: r.location_text ?? "Reported location",
+        lat: r.latitude,
+        lng: r.longitude,
+        distanceKm: 0,
+        reportedAgo: timeAgo(r.created_at),
+        status: "active",
+        riskLevel: meta.risk,
+        description: r.details ?? "",
+        imageUrls: [],
+        reportedBy: "Citizen Report",
+        nearbyCases: 0,
+        createdAt: r.created_at ?? undefined,
+      };
+    });
+}
+
+// Submit a citizen report via the SECURITY DEFINER RPC. Returns the new row id.
+export async function submitReport(input: {
+  reportType: ReportTypeId;
+  locationText: string;
+  lat: number;
+  lng: number;
+  details: string;
+  contactInfo?: string;
+  photoUrls?: string[];
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("submit_report", {
+    p_report_type: DB_REPORT_TYPE[input.reportType],
+    p_location_text: input.locationText,
+    p_latitude: input.lat,
+    p_longitude: input.lng,
+    p_details: input.details,
+    p_contact_info: input.contactInfo ?? null,
+    p_photo_urls: input.photoUrls ?? [],
+  });
+
+  if (error) throw error;
+  return data as string;
 }

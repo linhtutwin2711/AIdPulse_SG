@@ -1,16 +1,15 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { getActiveCases } from "@/lib/data";
+import { fetchPublicReports, submitReport } from "@/lib/data";
 import { SG_CENTER } from "@/constants";
 import type { ActiveCase, CaseType, ReportTypeId, RiskLevel } from "@/types";
 
-// Holds the live list of reported cases. Seeded from the mock fixtures; new
-// reports submitted on the Alert/Report page are appended here so they appear
-// as dots on the Map page immediately. Persisted to localStorage.
-//
-// Supabase later: addCase → INSERT into `active_cases`, the seed read becomes a
-// SELECT, and a realtime subscription replaces the localStorage sync.
+// Holds the live list of reported cases shown as dots on the Map page. On mount
+// it loads existing reports from Supabase (the v_public_reports view). New
+// reports submitted on the Alert/Report page are written through the
+// submit_report RPC and ALSO appended optimistically so the dot appears
+// instantly (and the /map?caseId= hand-off can select it) without a round-trip.
 
 type NewCaseInput = {
   caseType: CaseType;
@@ -36,34 +35,28 @@ interface CasesContextValue {
 }
 
 const CasesContext = createContext<CasesContextValue | null>(null);
-const STORAGE_KEY = "aidpulse:cases";
 
 export function CasesProvider({ children }: { children: React.ReactNode }) {
-  const [cases, setCases] = useState<ActiveCase[]>(() => getActiveCases());
+  const [cases, setCases] = useState<ActiveCase[]>([]);
 
-  // Hydrate after mount: keep saved cases, and merge in any seed not yet stored
-  // (so fixture updates still surface). Avoids SSR/hydration drift.
+  // Load existing reports from Supabase after mount. Optimistic items added this
+  // session are kept (merged by id) so a just-submitted dot isn't dropped if the
+  // fetch resolves afterwards.
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw) as ActiveCase[];
-      const ids = new Set(saved.map((c) => c.id));
-      const merged = [...saved, ...getActiveCases().filter((s) => !ids.has(s.id))];
-      setCases(merged);
-    } catch {
-      /* ignore malformed storage */
-    }
+    let active = true;
+    fetchPublicReports()
+      .then((remote) => {
+        if (!active) return;
+        setCases((local) => {
+          const ids = new Set(local.map((c) => c.id));
+          return [...local, ...remote.filter((r) => !ids.has(r.id))];
+        });
+      })
+      .catch((err) => console.error("CasesProvider fetchPublicReports failed:", err));
+    return () => {
+      active = false;
+    };
   }, []);
-
-  const persist = (next: ActiveCase[]) => {
-    setCases(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
-  };
 
   const addCase = (input: NewCaseInput): ActiveCase => {
     // Place near the map centre with a small spread so reports don't stack.
@@ -94,12 +87,27 @@ export function CasesProvider({ children }: { children: React.ReactNode }) {
       createdAt: now.toISOString(),
       expiresAt: expires,
     };
-    persist([item, ...cases]);
+
+    // Show the dot immediately…
+    setCases((prev) => [item, ...prev]);
+
+    // …and persist to Supabase via the RPC. Fire-and-forget: the optimistic dot
+    // already covers the UI, so a write failure only logs (doesn't block the UX).
+    const contactInfo = [item.contactPhone, item.contactEmail].filter(Boolean).join(" | ");
+    submitReport({
+      reportType: input.reportType ?? "other",
+      locationText: item.locationName,
+      lat: item.lat,
+      lng: item.lng,
+      details: item.description,
+      contactInfo: contactInfo || undefined,
+    }).catch((err) => console.error("CasesProvider submitReport failed:", err));
+
     return item;
   };
 
   const resolveCase = (id: string) =>
-    persist(cases.map((c) => (c.id === id ? { ...c, status: "resolved" } : c)));
+    setCases((prev) => prev.map((c) => (c.id === id ? { ...c, status: "resolved" } : c)));
 
   const value = useMemo<CasesContextValue>(
     () => ({ cases, addCase, resolveCase }),
