@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, Loader2, Lock, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowRight, Building2, Check, CheckCircle2, Loader2, Lock, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useRole } from "@/components/providers/role-provider";
 import { getHospitals } from "@/lib/data";
 import { Button } from "@/components/ui/button";
@@ -11,15 +11,42 @@ import { cn } from "@/lib/utils";
 type Step = 0 | 1 | 2 | 3;
 const STEP_LABELS = ["Identity", "Verification", "Authenticate"];
 
+/** Bold the part of `text` that matches the lowercased query `q`. */
+function highlight(text: string, q: string) {
+  if (!q) return text;
+  const i = text.toLowerCase().indexOf(q);
+  if (i === -1) return text;
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark className="bg-transparent font-bold text-gold">{text.slice(i, i + q.length)}</mark>
+      {text.slice(i + q.length)}
+    </>
+  );
+}
+
 export default function OfficerAccessPage() {
   const router = useRouter();
   const { setRole, setOfficerHospitalId } = useRole();
   const hospitals = getHospitals();
   const [step, setStep] = useState<Step>(0);
   const [hospitalId, setHospitalId] = useState(hospitals[0]?.id ?? "");
+  const [hospitalQuery, setHospitalQuery] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+
+  const q = hospitalQuery.trim().toLowerCase();
+  const filteredHospitals = q
+    ? hospitals.filter(
+        (h) =>
+          h.name.toLowerCase().includes(q) ||
+          (h.type ?? "").toLowerCase().includes(q) ||
+          (h.address ?? "").toLowerCase().includes(q),
+      )
+    : hospitals;
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Simulated verification — the officer console is a demo gate, not a real
+  // SMS flow. (Real Twilio OTP lives on the citizen sign-up at app/page.tsx.)
   useEffect(() => {
     if (step === 2) {
       const t = setTimeout(() => setStep(3), 1800);
@@ -60,23 +87,64 @@ export default function OfficerAccessPage() {
           <form onSubmit={(e) => { e.preventDefault(); setStep(1); }} className="space-y-4">
             <label className="block">
               <span className="text-sm font-medium">Officer ID</span>
-              <input required placeholder="e.g. EO-SG-0481" className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none" />
+              <input required placeholder="e.g. EO-SG-0481" className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none focus-visible:border-gold" />
             </label>
-            <label className="block">
-              <span className="text-sm font-medium">Hospital</span>
-              <select
-                value={hospitalId}
-                onChange={(e) => setHospitalId(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none"
-              >
-                {hospitals.map((h) => (
-                  <option key={h.id} value={h.id}>{h.name}</option>
-                ))}
-              </select>
+            <div className="block">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Hospital</span>
+                <span className="text-xs text-muted-foreground">
+                  {q ? `${filteredHospitals.length} of ${hospitals.length}` : `${hospitals.length} hospitals`}
+                </span>
+              </div>
+              <div className="relative mt-1.5">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={hospitalQuery}
+                  onChange={(e) => setHospitalQuery(e.target.value)}
+                  placeholder="Search hospitals…"
+                  className="w-full rounded-xl border border-input bg-input/30 py-2.5 pl-9 pr-3 text-sm outline-none focus-visible:border-gold"
+                />
+              </div>
+              <div className="mt-1.5 max-h-56 space-y-1 overflow-y-auto rounded-xl border border-input bg-input/30 p-1.5">
+                {filteredHospitals.length === 0 && (
+                  <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    No hospitals match “{hospitalQuery}”.
+                  </p>
+                )}
+                {filteredHospitals.map((h) => {
+                  const selected = h.id === hospitalId;
+                  return (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={() => setHospitalId(h.id)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors",
+                        selected ? "bg-gold/15 ring-1 ring-gold" : "hover:bg-secondary"
+                      )}
+                    >
+                      <span className={cn(
+                        "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                        selected ? "bg-gold/20 text-gold" : "bg-secondary text-muted-foreground"
+                      )}>
+                        <Building2 className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{highlight(h.name, q)}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {h.type ?? h.address}
+                        </span>
+                      </span>
+                      {selected && <Check className="size-4 shrink-0 text-gold" />}
+                    </button>
+                  );
+                })}
+              </div>
               <span className="mt-1 block text-xs text-muted-foreground">
                 Volunteer opportunities you post will be listed under this hospital.
               </span>
-            </label>
+            </div>
             <label className="block">
               <span className="text-sm font-medium">Access Passphrase</span>
               <input required type="password" placeholder="Enter your secure passphrase" className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none" />

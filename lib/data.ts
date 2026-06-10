@@ -37,7 +37,7 @@ import type {
   Severity,
   VolunteerStats,
 } from "@/types";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 
 export const getCaseStats = () => caseStats;
 export const getAreaRanks = () => areaRanks;
@@ -196,6 +196,9 @@ export function timeAgo(iso: string | null): string {
 // today's live totals plus the day-over-day delta vs the latest snapshot in
 // case_stats_snapshots (written by the n8n case-clusters ingest).
 export async function fetchCaseStats(): Promise<CaseStats> {
+  // No Supabase credentials → serve the mock fixture instead of failing.
+  if (!isSupabaseConfigured) return caseStats;
+
   const { data, error } = await supabase
     .from("v_case_tracking")
     .select("active_cases, critical_cases, active_delta, critical_delta")
@@ -226,6 +229,8 @@ export async function fetchCaseStats(): Promise<CaseStats> {
 
 // "Areas by Active Cases" — VIEW v_area_ranking, ordered by ranking.
 export async function fetchAreaRanks(): Promise<AreaRank[]> {
+  if (!isSupabaseConfigured) return areaRanks;
+
   const { data, error } = await supabase
     .from("v_area_ranking")
     .select("area_name, active_cases, critical_cases, ranking")
@@ -247,6 +252,8 @@ export async function fetchAreaRanks(): Promise<AreaRank[]> {
 // distanceKm / precautions / nearbyAreas aren't in the schema, so they're left
 // undefined; the banner + modal render those sections conditionally.
 export async function fetchBannerAlert(): Promise<Alert | null> {
+  if (!isSupabaseConfigured) return highRiskAlert;
+
   const { data, error } = await supabase
     .from("case_clusters")
     .select(
@@ -284,6 +291,8 @@ export async function fetchBannerAlert(): Promise<Alert | null> {
 // comments / reposts / views aren't in the schema, so they fall back to
 // neutral defaults; category (if present) is shown as the source label.
 export async function fetchNewsUpdates(): Promise<NewsUpdate[]> {
+  if (!isSupabaseConfigured) return newsUpdates;
+
   const { data, error } = await supabase
     .from("news_updates")
     .select("id, title, summary, image_url, category, is_live, status, published_at, created_at")
@@ -314,6 +323,23 @@ export async function fetchNewsUpdates(): Promise<NewsUpdate[]> {
 // reuses the shared supabase client and reads as anon (see the RLS policy in
 // supabase/migrations/20260610130000_latest_updates.sql).
 export async function getLatestUpdates(limit = 5): Promise<LatestUpdate[]> {
+  // No Supabase credentials → adapt the mock news fixture into LatestUpdate
+  // shape so the dashboard preview still renders real-looking content.
+  if (!isSupabaseConfigured) {
+    return newsUpdates.slice(0, limit).map((n) => ({
+      id: n.id,
+      title: n.title,
+      summary: n.description || null,
+      sourceName: n.source || null,
+      sourceUrl: n.url ?? null,
+      category: null,
+      location: null,
+      severity: n.live ? "high" : null,
+      imageUrl: n.image || null,
+      publishedAt: null,
+    }));
+  }
+
   const { data, error } = await supabase
     .from("latest_updates")
     .select(
@@ -396,6 +422,8 @@ function caseTypeFromDisease(disease: string | null): CaseType {
 // Case cluster dots on the map — TABLE case_clusters, one marker per cluster.
 // Rows without coordinates can't be placed, so they're skipped.
 export async function fetchCaseMarkers(): Promise<CaseMarker[]> {
+  if (!isSupabaseConfigured) return caseMarkers;
+
   const { data, error } = await supabase
     .from("case_clusters")
     .select(
@@ -427,6 +455,8 @@ export async function fetchCaseMarkers(): Promise<CaseMarker[]> {
 // and each bed row becomes a "department" line in the hospital detail panel.
 // Two queries joined in JS so we don't depend on a PostgREST FK embedding.
 export async function fetchHospitals(): Promise<Hospital[]> {
+  if (!isSupabaseConfigured) return hospitals;
+
   const [hRes, bRes] = await Promise.all([
     supabase.from("hospitals").select("id, name, address, latitude, longitude"),
     supabase
@@ -439,7 +469,7 @@ export async function fetchHospitals(): Promise<Hospital[]> {
 
   const beds = bRes.data ?? [];
 
-  return (hRes.data ?? [])
+  const mapped = (hRes.data ?? [])
     .filter((h) => h.latitude != null && h.longitude != null)
     .map((h) => {
       const rows = beds.filter((b) => b.hospital_id === h.id);
@@ -466,6 +496,15 @@ export async function fetchHospitals(): Promise<Hospital[]> {
         })),
       };
     });
+
+  // The live `hospitals` table is currently only seeded with a handful of
+  // placeholder rows (anon key can't INSERT due to RLS), so the map would show
+  // far fewer than Singapore's real hospital network. Until the live table
+  // carries at least as many rows as our curated set, fall back to the full
+  // 30-hospital mock. This auto-upgrades to live data once Supabase is seeded.
+  if (mapped.length < hospitals.length) return hospitals;
+
+  return mapped;
 }
 
 // ---------------------------------------------------------------------------
@@ -516,6 +555,8 @@ const REPORT_CASE: Record<ReportTypeId, { caseType: CaseType; title: string; ris
 // Reported case dots — VIEW v_public_reports (non-PII, status <> 'closed').
 // Photos aren't exposed by the view, so imageUrls is empty for live reports.
 export async function fetchPublicReports(): Promise<ActiveCase[]> {
+  if (!isSupabaseConfigured) return getActiveCases();
+
   const { data, error } = await supabase
     .from("v_public_reports")
     .select("id, report_type, location_text, latitude, longitude, details, created_at, expires_at")
@@ -562,6 +603,14 @@ export async function submitReport(input: {
   photoUrls?: string[];
   expiresAt?: string;
 }): Promise<string> {
+  // Writes have no mock equivalent — make the misconfiguration explicit instead
+  // of silently dropping the report.
+  if (!isSupabaseConfigured) {
+    throw new Error(
+      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local to submit reports.",
+    );
+  }
+
   const { data, error } = await supabase.rpc("submit_report", {
     p_report_type: DB_REPORT_TYPE[input.reportType],
     p_location_text: input.locationText,

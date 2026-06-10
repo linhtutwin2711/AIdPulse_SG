@@ -9,12 +9,16 @@ export default function OfficerDashboard() {
   return (
     <div className="space-y-6">
       <AlertBanner alert={getHighRiskAlert()} />
-      <OfficerActions />
-      <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <CaseTracking />
-        <AreaRanking />
+
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <UpdatesList />
+        <div className="space-y-6">
+          <CaseTracking />
+          <AreaRanking />
+        </div>
       </div>
-      <UpdatesList />
+
+      <OfficerActions />
     </div>
   );
 }

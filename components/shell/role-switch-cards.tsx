@@ -7,11 +7,9 @@ import {
   ChevronRight,
   HeartHandshake,
   Lock,
-  LogIn,
   ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useRole } from "@/components/providers/role-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -90,7 +88,6 @@ function CardBody({ c }: { c: CardDef }) {
 
 export function RoleSwitchCards({ variant = "grid" }: { variant?: "grid" | "map" }) {
   const router = useRouter();
-  const { setRole } = useRole();
   const [openRole, setOpenRole] = useState<LockedRole | null>(null);
   const [expanded, setExpanded] = useState(false);
 
@@ -185,16 +182,6 @@ export function RoleSwitchCards({ variant = "grid" }: { variant?: "grid" | "map"
               >
                 {active.primaryLabel} <ArrowRight className="size-5" />
               </Button>
-
-              {active.role === "volunteer" && (
-                <Button
-                  variant="ghost"
-                  className="h-10 w-full"
-                  onClick={() => { setRole("volunteer"); setOpenRole(null); router.push("/volunteer/dashboard"); }}
-                >
-                  <LogIn className="size-4" /> I&apos;m already a volunteer
-                </Button>
-              )}
             </div>
 
             {active.note && (
