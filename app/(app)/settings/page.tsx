@@ -16,7 +16,9 @@ import {
 } from "lucide-react";
 import { useProfile } from "@/components/providers/profile-provider";
 import { useSettings } from "@/components/providers/settings-provider";
+import { useMissions } from "@/components/providers/missions-provider";
 import { Button } from "@/components/ui/button";
+import { ImpactStats } from "@/components/volunteer/impact-stats";
 import { countries, defaultCountry } from "@/constants";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +118,7 @@ function SettingsView() {
 
 function AccountTab() {
   const { profile, setProfile, initials } = useProfile();
+  const { stats } = useMissions();
   const [firstName, setFirstName] = useState(profile.firstName);
   const [lastName, setLastName] = useState(profile.lastName);
   const [preferredName, setPreferredName] = useState(profile.preferredName);
@@ -156,6 +159,7 @@ function AccountTab() {
     "mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none focus-visible:border-ring disabled:cursor-default disabled:opacity-60";
 
   return (
+    <div className="space-y-6">
     <div className="surface space-y-5 p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -201,6 +205,13 @@ function AccountTab() {
         )}
         {saved && <span className="flex items-center gap-1 text-sm text-success"><Check className="size-4" /> Saved</span>}
       </div>
+    </div>
+
+    <div className="surface p-6">
+      <h3 className="font-semibold">Volunteer Impact</h3>
+      <p className="text-sm text-muted-foreground">Your contribution across all missions.</p>
+      <ImpactStats stats={stats} className="mt-4" />
+    </div>
     </div>
   );
 }

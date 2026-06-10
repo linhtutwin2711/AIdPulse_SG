@@ -9,6 +9,7 @@ import {
   Search,
   ShieldPlus,
   Thermometer,
+  Users,
 } from "lucide-react";
 import { useMessages } from "@/components/providers/messages-provider";
 import { cn } from "@/lib/utils";
@@ -112,6 +113,7 @@ export function UpdatesSidebar({
         {/* Main actions */}
         <div className="space-y-1 px-2">
           <SideItem icon={Search} label="Search Updates" collapsed={collapsed} active={view === "search"} onClick={() => onSelectView("search")} />
+          <SideItem icon={Users} label="Friends" collapsed={collapsed} active={view === "friends"} onClick={() => onSelectView("friends")} />
         </div>
 
         <div className="mt-3 flex-1 space-y-1 overflow-y-auto px-2 no-scrollbar">

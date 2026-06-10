@@ -1,18 +1,14 @@
-import type { Mission, Opportunity, VolunteerStats } from "@/types";
+import type { Mission, Opportunity } from "@/types";
 
-export const volunteerStats: VolunteerStats = {
-  totalMissions: 18,
-  hours: 64,
-  livesSupported: 230,
-};
-
+// Completed missions carry a `beneficiaries` count (recorded at check-out);
+// VolunteerStats.livesSupported is the sum of these, not a fixed number.
 export const missions: Mission[] = [
-  { id: "m1", title: "Dengue Fogging Support", org: "NEA", location: "Tanjong Pagar", date: "27 May 2026", status: "ongoing", hours: 4 },
+  { id: "m1", title: "Dengue Fogging Support", org: "NEA", location: "Tanjong Pagar", date: "27 May 2026", status: "assigned", hours: 4 },
   { id: "m2", title: "Vaccination Drive Assistant", org: "MOH", location: "Queenstown", date: "26 May 2026", status: "assigned", hours: 6 },
-  { id: "m3", title: "Emergency Department Support", org: "SGH", location: "Outram", date: "24 May 2026", status: "completed", hours: 8 },
-  { id: "m4", title: "Blood Donation Registration", org: "Red Cross", location: "Dhoby Ghaut", date: "22 May 2026", status: "completed", hours: 5 },
+  { id: "m3", title: "Emergency Department Support", org: "SGH", location: "Outram", date: "24 May 2026", status: "completed", hours: 8, beneficiaries: 42 },
+  { id: "m4", title: "Blood Donation Registration", org: "Red Cross", location: "Dhoby Ghaut", date: "22 May 2026", status: "completed", hours: 5, beneficiaries: 38 },
   { id: "m5", title: "Community Meal Distribution", org: "Willing Hearts", location: "Geylang", date: "20 May 2026", status: "cancelled", hours: 0 },
-  { id: "m6", title: "Ward Assistance Volunteer", org: "TTSH", location: "Novena", date: "18 May 2026", status: "completed", hours: 7 },
+  { id: "m6", title: "Ward Assistance Volunteer", org: "TTSH", location: "Novena", date: "18 May 2026", status: "completed", hours: 7, beneficiaries: 55 },
 ];
 
 export const opportunities: Opportunity[] = [
@@ -27,6 +23,7 @@ export const opportunities: Opportunity[] = [
     skills: ["General Volunteer"],
     urgency: "soon",
     matched: true,
+    hours: 4,
   },
   {
     id: "o2",
@@ -39,6 +36,7 @@ export const opportunities: Opportunity[] = [
     skills: ["Certificate Required", "Hospital Role"],
     urgency: "urgent",
     matched: true,
+    hours: 5,
   },
   {
     id: "o3",
@@ -50,6 +48,7 @@ export const opportunities: Opportunity[] = [
     roleType: "General Volunteer",
     skills: ["General Volunteer"],
     urgency: "flexible",
+    hours: 3,
   },
   {
     id: "o4",
@@ -62,6 +61,7 @@ export const opportunities: Opportunity[] = [
     skills: ["Healthcare Support", "Expert Role"],
     urgency: "soon",
     matched: true,
+    hours: 6,
   },
   {
     id: "o5",
@@ -73,5 +73,6 @@ export const opportunities: Opportunity[] = [
     roleType: "Logistics Support",
     skills: ["Logistics Support"],
     urgency: "flexible",
+    hours: 4,
   },
 ];

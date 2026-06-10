@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Award, ChevronRight, Clock, MapPin, Navigation, Search, Siren } from "lucide-react";
+import { Award, Check, Clock, MapPin, Navigation, Plus, Search, Siren } from "lucide-react";
 import { getOpportunities } from "@/lib/data";
 import { urgencyClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
+import { useMissions } from "@/components/providers/missions-provider";
+import { Button } from "@/components/ui/button";
+import { VolunteerNav } from "@/components/volunteer/volunteer-nav";
 
 type Tab = "all" | "near" | "cert" | "urgent";
 const TABS: { id: Tab; label: string }[] = [
@@ -16,6 +19,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function OpportunitiesPage() {
   const all = getOpportunities();
+  const { hasApplied, applyToOpportunity } = useMissions();
   const [tab, setTab] = useState<Tab>("all");
 
   const list = all.filter((o) => {
@@ -32,7 +36,18 @@ export default function OpportunitiesPage() {
   ];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Nearby Opportunities</h1>
+          <p className="text-sm text-muted-foreground">
+            Matched to your location, certificates, and expertise.
+          </p>
+        </div>
+        <VolunteerNav />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
       <aside className="space-y-4">
         <div className="surface p-5">
           <p className="font-semibold">Opportunity Overview</p>
@@ -54,13 +69,7 @@ export default function OpportunitiesPage() {
       </aside>
 
       <section>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Nearby Opportunities</h1>
-            <p className="text-sm text-muted-foreground">
-              Matched to your location, certificates, and expertise.
-            </p>
-          </div>
+        <div className="flex justify-end">
           <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm text-muted-foreground max-md:hidden">
             <Search className="size-4" /> Search opportunities…
           </div>
@@ -103,7 +112,15 @@ export default function OpportunitiesPage() {
                   ))}
                 </div>
               </div>
-              <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+              {hasApplied(o.id) ? (
+                <span className="pill shrink-0 gap-1 bg-success/15 text-success">
+                  <Check className="size-3.5" /> Applied
+                </span>
+              ) : (
+                <Button onClick={() => applyToOpportunity(o)} className="shrink-0">
+                  <Plus className="size-4" /> Apply
+                </Button>
+              )}
             </div>
           ))}
           {list.length === 0 && (
@@ -113,6 +130,7 @@ export default function OpportunitiesPage() {
           )}
         </div>
       </section>
+      </div>
     </div>
   );
 }

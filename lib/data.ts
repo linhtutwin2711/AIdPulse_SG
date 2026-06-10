@@ -14,8 +14,8 @@ import {
   missions,
   newsUpdates,
   opportunities,
+  peopleDirectory,
   reportTypes,
-  volunteerStats,
 } from "@/constants";
 import type {
   ActiveCase,
@@ -24,6 +24,7 @@ import type {
   CaseStats,
   CaseType,
   Conversation,
+  Friend,
   Hospital,
   Mission,
   MissionStatus,
@@ -31,6 +32,7 @@ import type {
   Opportunity,
   ReportTypeId,
   Severity,
+  VolunteerStats,
 } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -95,16 +97,32 @@ export const getHospitals = (): Hospital[] => hospitals;
 export const getHospital = (id: string) => hospitals.find((h) => h.id === id);
 export const getReportTypes = () => reportTypes;
 export const getCurrentUser = () => currentUser;
-export const getVolunteerStats = () => volunteerStats;
 
 export const getMissions = (status?: MissionStatus): Mission[] =>
   status ? missions.filter((m) => m.status === status) : missions;
+
+/**
+ * Volunteer stats are derived from the mission list, not stored as fixed
+ * numbers — so they stay consistent as missions are checked out:
+ *  - totalMissions: every mission you took on (excludes cancelled)
+ *  - hours: total logged hours
+ *  - livesSupported: sum of beneficiaries recorded at check-out
+ */
+export const deriveVolunteerStats = (list: Mission[]): VolunteerStats => ({
+  totalMissions: list.filter((m) => m.status !== "cancelled").length,
+  hours: list.reduce((sum, m) => sum + m.hours, 0),
+  livesSupported: list.reduce((sum, m) => sum + (m.beneficiaries ?? 0), 0),
+});
 
 export const getOpportunities = (): Opportunity[] => opportunities;
 
 export const getConversations = (): Conversation[] => conversations;
 export const getConversation = (id: string) =>
   conversations.find((c) => c.id === id);
+
+// People you can connect with (the friend directory).
+// Supabase equivalent: supabase.from("profiles").select("*")
+export const getPeopleDirectory = (): Friend[] => peopleDirectory;
 
 // Hospital bed availability summary. Occupancy bands: high > 80, medium 50–80, low < 50.
 export const bedSummary = (h: Hospital) => {

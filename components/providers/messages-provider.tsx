@@ -48,6 +48,7 @@ const SEED: DMConversation[] = [
 interface MessagesContextValue {
   conversations: DMConversation[];
   getConversation: (id: string) => DMConversation | undefined;
+  addConversation: (conv: Omit<DMConversation, "messages"> & { messages?: DMMessage[] }) => void;
   sendMessage: (convId: string, text: string) => void;
   editMessage: (convId: string, msgId: string, text: string) => void;
   deleteMessage: (convId: string, msgId: string) => void;
@@ -90,6 +91,11 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     return {
       conversations,
       getConversation: (id) => conversations.find((c) => c.id === id),
+      // Idempotent: opening a DM for a friend who already has a thread is a no-op.
+      addConversation: (conv) => {
+        if (conversations.some((c) => c.id === conv.id)) return;
+        persist([...conversations, { messages: [], ...conv }]);
+      },
       sendMessage: (convId, text) =>
         mapConv(convId, (m) => [...m, { id: nid(), text, self: true, time: "now" }]),
       editMessage: (convId, msgId, text) =>

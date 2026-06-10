@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { Bell, FileText, Map as MapIcon } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { ProfileMenu } from "@/components/shell/profile-menu";
+import { useRole } from "@/components/providers/role-provider";
 import { roleAccent, roleLabel } from "@/lib/ui";
 import { cn } from "@/lib/utils";
-import type { Role } from "@/types";
 
 const TABS = [
   { href: "/dashboard", label: "Alerts", icon: Bell },
@@ -18,13 +18,10 @@ const TABS = [
 export function TopNav() {
   const pathname = usePathname();
 
-  // The displayed role reflects the section you're actually in — not a sticky
-  // flag. On the shared/citizen pages you're a normal user with no role title.
-  const section: Role = pathname.startsWith("/volunteer")
-    ? "volunteer"
-    : pathname.startsWith("/officer")
-      ? "officer"
-      : "citizen";
+  // Drive the section from the persisted role — not the current path — so that
+  // visiting a shared page (/map, /report) keeps a volunteer/officer in their
+  // own section instead of dropping them back to the citizen dashboard.
+  const { role: section } = useRole();
 
   const homeHref =
     section === "volunteer"

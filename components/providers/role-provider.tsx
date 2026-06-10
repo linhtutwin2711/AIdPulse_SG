@@ -12,6 +12,10 @@ import type { Role } from "@/types";
 interface RoleContextValue {
   role: Role;
   setRole: (role: Role) => void;
+  /** False until the persisted role has been read from localStorage. Guards
+   *  must wait for this before redirecting, or a real volunteer/officer who
+   *  reloads on a protected page would be bounced out during hydration. */
+  hydrated: boolean;
 }
 
 const RoleContext = createContext<RoleContextValue | null>(null);
@@ -19,6 +23,7 @@ const STORAGE_KEY = "aidpulse:role";
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<Role>("citizen");
+  const [hydrated, setHydrated] = useState(false);
 
   // Hydrate the persisted role after mount (avoids SSR mismatch).
   useEffect(() => {
@@ -26,6 +31,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     if (saved === "citizen" || saved === "volunteer" || saved === "officer") {
       setRoleState(saved);
     }
+    setHydrated(true);
   }, []);
 
   const setRole = (next: Role) => {
@@ -33,7 +39,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(STORAGE_KEY, next);
   };
 
-  const value = useMemo(() => ({ role, setRole }), [role]);
+  const value = useMemo(() => ({ role, setRole, hydrated }), [role, hydrated]);
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 }
 

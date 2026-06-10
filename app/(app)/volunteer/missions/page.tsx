@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { CalendarDays, ClipboardList, Clock, HeartPulse, MapPin } from "lucide-react";
-import { getMissions, getVolunteerStats } from "@/lib/data";
 import { statusClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
+import { useMissions } from "@/components/providers/missions-provider";
+import { VolunteerNav } from "@/components/volunteer/volunteer-nav";
 import type { MissionStatus } from "@/types";
 
 const FILTERS: { id: MissionStatus | "all"; label: string }[] = [
@@ -16,8 +17,7 @@ const FILTERS: { id: MissionStatus | "all"; label: string }[] = [
 ];
 
 export default function MissionsPage() {
-  const stats = getVolunteerStats();
-  const all = getMissions();
+  const { missions: all, stats } = useMissions();
   const [filter, setFilter] = useState<MissionStatus | "all">("all");
   const missions = filter === "all" ? all : all.filter((m) => m.status === filter);
 
@@ -29,11 +29,14 @@ export default function MissionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">My Missions</h1>
-        <p className="text-sm text-muted-foreground">
-          Track and manage all your volunteering missions in one place.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">My Missions</h1>
+          <p className="text-sm text-muted-foreground">
+            Track and manage all your volunteering missions in one place.
+          </p>
+        </div>
+        <VolunteerNav />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -78,6 +81,9 @@ export default function MissionsPage() {
                 <span className="flex items-center gap-1"><MapPin className="size-3.5" /> {m.location}</span>
                 <span className="flex items-center gap-1"><CalendarDays className="size-3.5" /> {m.date}</span>
                 {m.hours > 0 && <span className="flex items-center gap-1"><Clock className="size-3.5" /> {m.hours}h</span>}
+                {typeof m.beneficiaries === "number" && (
+                  <span className="flex items-center gap-1"><HeartPulse className="size-3.5" /> {m.beneficiaries} lives</span>
+                )}
               </div>
             </div>
           </div>

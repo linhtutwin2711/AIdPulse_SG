@@ -7,6 +7,7 @@ import { ArrowLeft, Bell, FileText, Map as MapIcon, Menu, Repeat2, Search } from
 import { ProfileMenu } from "@/components/shell/profile-menu";
 import { PostCard } from "@/components/updates/post-card";
 import { MessagesPanel } from "@/components/updates/messages-panel";
+import { FriendsPanel } from "@/components/updates/friends-panel";
 import { UpdatesSidebar } from "@/components/updates/updates-sidebar";
 import { useUpdates } from "@/components/providers/updates-provider";
 import { getNewsUpdates } from "@/lib/data";
@@ -117,6 +118,8 @@ function UpdatesView() {
         <main className="mx-auto w-full max-w-3xl px-4 py-6">
           {view === "messages" ? (
             <MessagesPanel activeId={chatId} />
+          ) : view === "friends" ? (
+            <FriendsPanel onMessage={selectChat} />
           ) : (
             <div className="space-y-4">
               <h1 className="text-xl font-bold">{TITLES[view] ?? "Latest Updates"}</h1>

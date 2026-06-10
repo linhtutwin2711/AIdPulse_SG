@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { BedDouble, MessagesSquare, Radio } from "lucide-react";
+import { BedDouble, MessagesSquare, QrCode, Radio, Users } from "lucide-react";
 
 const ACTIONS = [
   { href: "/officer/broadcast", icon: Radio, title: "Broadcast Alert", desc: "Send emergency alerts to citizens in affected areas." },
   { href: "/officer/broadcast", icon: BedDouble, title: "Hospital Beds", desc: "Update real-time hospital bed availability." },
   { href: "/officer/chat", icon: MessagesSquare, title: "Responder Chat", desc: "Coordinate securely with hospitals and response teams." },
+  { href: "/officer/qr", icon: QrCode, title: "Mission QR", desc: "Generate check-in QR codes for volunteer missions." },
+  { href: "/officer/volunteers", icon: Users, title: "Volunteers", desc: "Browse volunteers and their impact stats." },
 ];
 
 export function OfficerActions() {

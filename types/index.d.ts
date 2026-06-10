@@ -148,6 +148,17 @@ export interface Mission {
   date: string;
   status: MissionStatus;
   hours: number;
+  // People supported on this mission, recorded by the volunteer at check-out.
+  // Summed across completed missions to produce VolunteerStats.livesSupported.
+  beneficiaries?: number;
+  // Opportunity this mission was created from (set when a volunteer applies).
+  opportunityId?: string;
+  // Check-in code an officer generates and embeds in the mission QR; the
+  // volunteer enters/scans it to check in.
+  checkInCode?: string;
+  // ISO timestamp set at check-in; drives the minimum on-site time lock before
+  // check-out is allowed.
+  checkInAt?: string;
 }
 
 export interface VolunteerStats {
@@ -169,6 +180,19 @@ export interface Opportunity {
   skills: string[];
   urgency: Urgency;
   matched?: boolean;
+  // Estimated shift length; carried onto the mission when a volunteer applies.
+  hours?: number;
+}
+
+/** A volunteer as seen on the officer roster (their live impact stats). */
+export interface VolunteerProfile {
+  id: string;
+  name: string;
+  initials: string;
+  skills: string[];
+  stats: VolunteerStats;
+  // True for the signed-in volunteer, whose stats are computed live.
+  you?: boolean;
 }
 
 export interface ChatMessage {
@@ -178,6 +202,18 @@ export interface ChatMessage {
   text: string;
   time: string;
   self?: boolean;
+}
+
+// A person you can connect with. The mock directory in `constants/friends.ts`
+// implements this; a Supabase `profiles` query replaces it later.
+export interface Friend {
+  id: string;
+  name: string;
+  initials: string;
+  role?: Role;
+  area?: string;
+  online?: boolean;
+  mutualFriends?: number;
 }
 
 export interface Conversation {
