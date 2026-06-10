@@ -141,13 +141,15 @@ function severityFromCases(active: number, critical: number): Severity {
 }
 
 // Map a free-text risk_level (e.g. "High") onto the Severity enum.
-function severityFromRisk(risk: string | null): Severity {
+// Returns null for unrecognised/empty values so callers can fall back to
+// deriving severity from case counts instead of over-stating it as "high".
+function severityFromRisk(risk: string | null): Severity | null {
   const r = (risk ?? "").toLowerCase();
   if (r.includes("crit")) return "critical";
   if (r.includes("high")) return "high";
   if (r.includes("med") || r.includes("mod")) return "moderate";
   if (r.includes("low")) return "low";
-  return "high";
+  return null;
 }
 
 // Human "x min ago" label from an ISO timestamp. Safe to use Date.now here:
@@ -174,7 +176,11 @@ export async function fetchCaseStats(): Promise<CaseStats> {
     .select("active_cases, critical_cases")
     .maybeSingle();
 
-  if (error || !data) {
+  // A Supabase error (auth/network/schema) is a failure, not an empty state —
+  // throw so the calling component's .catch can observe/handle it. A successful
+  // query with no row falls through to the zero defaults below.
+  if (error) throw error;
+  if (!data) {
     return {
       activeCases: 0,
       activeDelta: 0,
@@ -200,7 +206,8 @@ export async function fetchAreaRanks(): Promise<AreaRank[]> {
     .select("area_name, active_cases, critical_cases, ranking")
     .order("ranking", { ascending: true });
 
-  if (error || !data) return [];
+  if (error) throw error;
+  if (!data) return [];
 
   return data.map((r) => ({
     rank: r.ranking,
@@ -221,17 +228,24 @@ export async function fetchBannerAlert(): Promise<Alert | null> {
       "disease, title, description, area_name, active_cases, critical_cases, risk_level, is_banner",
     )
     .eq("is_banner", true)
+    // Deterministic pick when more than one banner row exists: newest first.
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) throw error;
+  if (!data) return null; // no is_banner row is a valid empty state, not an error
 
   return {
     id: `banner-${data.area_name}`,
     area: data.area_name,
     title: data.title,
     message: data.description,
-    severity: severityFromRisk(data.risk_level),
+    // Trust an explicit risk_level; otherwise defer to the case-count heuristic
+    // rather than letting an unknown value spike severity to "high".
+    severity:
+      severityFromRisk(data.risk_level) ??
+      severityFromCases(data.active_cases ?? 0, data.critical_cases ?? 0),
     updatedAgo: "just now",
     riskLevel: data.risk_level ?? "High",
     activeCases: data.active_cases ?? undefined,
@@ -249,7 +263,8 @@ export async function fetchNewsUpdates(): Promise<NewsUpdate[]> {
     .eq("status", "published")
     .order("created_at", { ascending: false });
 
-  if (error || !data) return [];
+  if (error) throw error;
+  if (!data) return [];
 
   return data.map((n) => ({
     id: String(n.id),

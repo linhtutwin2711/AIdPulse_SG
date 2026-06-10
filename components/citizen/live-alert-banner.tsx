@@ -21,7 +21,7 @@ export function LiveAlertBanner() {
     let active = true;
     fetchBannerAlert()
       .then((data) => active && setAlert(data))
-      .catch(() => {});
+      .catch((err) => console.error("LiveAlertBanner fetchBannerAlert failed:", err));
     return () => {
       active = false;
     };

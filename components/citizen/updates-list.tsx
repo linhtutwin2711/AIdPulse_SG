@@ -15,7 +15,7 @@ export function UpdatesList() {
     let active = true;
     fetchNewsUpdates()
       .then((data) => active && setUpdates(data.slice(0, 4)))
-      .catch(() => {});
+      .catch((err) => console.error("UpdatesList fetchNewsUpdates failed:", err));
     return () => {
       active = false;
     };
