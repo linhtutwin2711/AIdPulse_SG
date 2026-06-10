@@ -1,0 +1,118 @@
+{
+  "name": "AidPulse — Latest Updates ingest (latest_updates)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 15 }] }
+      },
+      "id": "schedule",
+      "name": "Every 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-100, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Singapore public-health RSS sources. Verify each agency's official feed URL\n// (gov feeds change); CNA Health is a reliable fallback. Add/remove freely.\nreturn [\n  { json: { url: 'https://www.moh.gov.sg/rss/news-highlights' } },\n  { json: { url: 'https://www.nea.gov.sg/rss/news' } },\n  { json: { url: 'https://www.gov.sg/feed' } },\n  { json: { url: 'https://www.scdf.gov.sg/rss/news' } },\n  { json: { url: 'https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml&category=10416' } }\n];"
+      },
+      "id": "sources",
+      "name": "RSS sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [140, 80]
+    },
+    {
+      "parameters": { "url": "={{ $json.url }}", "options": { "ignoreSSL": false } },
+      "id": "rss",
+      "name": "Read RSS feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [380, 80],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize RSS entries -> latest_updates rows. source_name is derived from\n// the article link domain so no per-feed tagging is needed.\nfunction sourceFromUrl(u) {\n  try {\n    const h = new URL(u).hostname.replace(/^www\\./, '');\n    if (h.includes('moh.gov.sg')) return 'MOH';\n    if (h.includes('nea.gov.sg')) return 'NEA';\n    if (h.includes('scdf.gov.sg')) return 'SCDF';\n    if (h.includes('gov.sg')) return 'Gov.sg';\n    if (h.includes('channelnewsasia')) return 'CNA';\n    return h;\n  } catch (e) { return 'Gov.sg'; }\n}\nconst rows = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const link = j.link || j.guid;\n  if (!link || !j.title) continue;\n  const img = (j.enclosure && j.enclosure.url) || (j['media:content'] && j['media:content'].url) || null;\n  rows.push({\n    title: String(j.title).trim(),\n    summary: (j.contentSnippet || j.summary || '').toString().trim().slice(0, 500) || null,\n    content: j.content || null,\n    source_name: sourceFromUrl(link),\n    source_url: link,\n    category: Array.isArray(j.categories) ? j.categories[0] : (j.category || 'Health'),\n    location: 'Singapore',\n    severity: null,\n    image_url: img,\n    published_at: j.isoDate || j.pubDate || null\n  });\n}\nreturn rows.map((r) => ({ json: r }));"
+      },
+      "id": "normRss",
+      "name": "Normalize RSS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [620, 80]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api-production.data.gov.sg/v2/public/api/datasets",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [{ "name": "page", "value": "1" }] },
+        "options": {}
+      },
+      "id": "dataGov",
+      "name": "data.gov.sg API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [380, 360],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize data.gov.sg datasets -> latest_updates rows (recently-updated\n// open datasets surfaced as updates). Optional source; safe if the API shape\n// changes (returns nothing rather than erroring).\nconst res = ($input.first() && $input.first().json) || {};\nconst list = (res.data && res.data.datasets) || res.datasets || [];\nconst rows = [];\nfor (const d of list.slice(0, 10)) {\n  if (!d || !d.datasetId || !d.name) continue;\n  rows.push({\n    title: d.name,\n    summary: (d.description || '').toString().slice(0, 500) || null,\n    content: d.description || null,\n    source_name: 'Data.gov.sg',\n    source_url: `https://data.gov.sg/datasets/${d.datasetId}/view`,\n    category: 'Open Data',\n    location: 'Singapore',\n    severity: null,\n    image_url: null,\n    published_at: d.lastUpdatedAt || d.createdAt || null\n  });\n}\nreturn rows.map((r) => ({ json: r }));"
+      },
+      "id": "normApi",
+      "name": "Normalize API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [620, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect every normalized row into a single array, de-duped by source_url, so\n// the upsert is one request. (Supabase's UNIQUE(source_url) is the final guard.)\nconst seen = new Set();\nconst rows = [];\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (!r || !r.source_url || seen.has(r.source_url)) continue;\n  seen.add(r.source_url);\n  rows.push(r);\n}\nreturn [{ json: { rows } }];"
+      },
+      "id": "collect",
+      "name": "Collect rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/latest_updates?on_conflict=source_url",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "<SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Authorization", "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "upsert",
+      "name": "Upsert to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 200]
+    }
+  ],
+  "connections": {
+    "Every 15 min": {
+      "main": [[
+        { "node": "RSS sources", "type": "main", "index": 0 },
+        { "node": "data.gov.sg API", "type": "main", "index": 0 }
+      ]]
+    },
+    "RSS sources": { "main": [[{ "node": "Read RSS feed", "type": "main", "index": 0 }]] },
+    "Read RSS feed": { "main": [[{ "node": "Normalize RSS", "type": "main", "index": 0 }]] },
+    "Normalize RSS": { "main": [[{ "node": "Collect rows", "type": "main", "index": 0 }]] },
+    "data.gov.sg API": { "main": [[{ "node": "Normalize API", "type": "main", "index": 0 }]] },
+    "Normalize API": { "main": [[{ "node": "Collect rows", "type": "main", "index": 0 }]] },
+    "Collect rows": { "main": [[{ "node": "Upsert to Supabase", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

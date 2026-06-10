@@ -1,4 +1,45 @@
-# n8n — Latest News ingest
+# n8n — news / updates ingest
+
+> **Canonical workflow:** `latest-updates-ingest.json` → the **`latest_updates`**
+> table, which the citizen dashboard's **Latest Updates** section reads
+> (`lib/data.ts#getLatestUpdates`, server-rendered, newest 5). The older
+> `news-updates-ingest.json` (→ `news_updates`) is kept for reference but is
+> superseded by this one for the dashboard feed.
+
+## latest-updates-ingest.json (current)
+
+**Schedule:** every 15 minutes. **Sources:** RSS (MOH, NEA, Gov.sg, SCDF, CNA
+Health) + the data.gov.sg API. **Flow:** fetch → normalize to a common row
+shape → de-dupe by `source_url` → upsert into `latest_updates`
+(`on_conflict=source_url`, `Prefer: resolution=merge-duplicates`). The UNIQUE
+constraint on `source_url` is the final dedupe guard, so re-runs never duplicate.
+
+### Setup
+1. Supabase → **Settings → API → `service_role` key**. Replace both
+   `<SUPABASE_SERVICE_ROLE_KEY>` placeholders. service_role is required (RLS
+   only grants anon **read**; writes bypass RLS). Keep it in n8n only — never in
+   the browser app. Prefer an n8n **Credential** over an inline value.
+2. **Verify the RSS feed URLs** in the *RSS sources* node — government feed URLs
+   change; CNA Health is included as a known-working fallback. Add a source by
+   appending a `{ json: { url: '…' } }` line; `source_name` is auto-derived from
+   the link domain.
+3. Import `latest-updates-ingest.json`, run once, confirm rows land in
+   `latest_updates`, then **Activate**.
+
+### Row mapping (RSS → latest_updates)
+| latest_updates | RSS field |
+|---|---|
+| `title` | `title` |
+| `summary` | `contentSnippet` / `summary` |
+| `content` | `content` |
+| `source_name` | derived from link domain |
+| `source_url` (UNIQUE) | `link` |
+| `category` | first `categories[]` (default `Health`) |
+| `published_at` | `isoDate` / `pubDate` |
+
+---
+
+# (legacy) Latest News ingest → news_updates
 
 Pulls real public-health news into the `news_updates` table on a schedule. The
 citizen dashboard's **Latest Updates** feed reads that table

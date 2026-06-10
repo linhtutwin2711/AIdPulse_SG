@@ -26,6 +26,7 @@ import type {
   CaseType,
   Conversation,
   Hospital,
+  LatestUpdate,
   Mission,
   MissionStatus,
   NewsUpdate,
@@ -156,7 +157,7 @@ function severityFromRisk(risk: string | null): Severity | null {
 
 // Human "x min ago" label from an ISO timestamp. Safe to use Date.now here:
 // these accessors run in useEffect (client), never in the SSR render path.
-function timeAgo(iso: string | null): string {
+export function timeAgo(iso: string | null): string {
   if (!iso) return "just now";
   const ms = Date.now() - new Date(iso).getTime();
   if (Number.isNaN(ms)) return "just now";
@@ -282,6 +283,37 @@ export async function fetchNewsUpdates(): Promise<NewsUpdate[]> {
     comments: 0,
     reposts: 0,
     views: "0",
+  }));
+}
+
+// Real-time "Latest Updates" feed — TABLE latest_updates, populated by the n8n
+// ingest workflow. Newest first by published_at; `limit` caps the result set
+// (the dashboard preview asks for 5). Safe to call from a Server Component —
+// reuses the shared supabase client and reads as anon (see the RLS policy in
+// supabase/migrations/20260610130000_latest_updates.sql).
+export async function getLatestUpdates(limit = 5): Promise<LatestUpdate[]> {
+  const { data, error } = await supabase
+    .from("latest_updates")
+    .select(
+      "update_id, title, summary, source_name, source_url, category, location, severity, image_url, published_at",
+    )
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (error) throw error;
+  if (!data) return [];
+
+  return data.map((r) => ({
+    id: String(r.update_id),
+    title: r.title,
+    summary: r.summary ?? null,
+    sourceName: r.source_name ?? null,
+    sourceUrl: r.source_url ?? null,
+    category: r.category ?? null,
+    location: r.location ?? null,
+    severity: r.severity ?? null,
+    imageUrl: r.image_url ?? null,
+    publishedAt: r.published_at ?? null,
   }));
 }
 

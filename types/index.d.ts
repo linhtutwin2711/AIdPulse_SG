@@ -35,6 +35,21 @@ export interface NewsUpdate {
   views: string; // e.g. "12.4K"
 }
 
+// Real-time public-health update, ingested into the `latest_updates` table by
+// the n8n workflow and read by the citizen dashboard's Latest Updates section.
+export interface LatestUpdate {
+  id: string; // update_id
+  title: string;
+  summary: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  category: string | null;
+  location: string | null;
+  severity: string | null;
+  imageUrl: string | null;
+  publishedAt: string | null; // ISO
+}
+
 export interface ReplyItem {
   id: string;
   author: string;
