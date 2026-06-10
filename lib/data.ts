@@ -108,11 +108,14 @@ export const getMissions = (status?: MissionStatus): Mission[] =>
  *  - hours: total logged hours
  *  - livesSupported: sum of beneficiaries recorded at check-out
  */
-export const deriveVolunteerStats = (list: Mission[]): VolunteerStats => ({
-  totalMissions: list.filter((m) => m.status !== "cancelled").length,
-  hours: list.reduce((sum, m) => sum + m.hours, 0),
-  livesSupported: list.reduce((sum, m) => sum + (m.beneficiaries ?? 0), 0),
-});
+export const deriveVolunteerStats = (list: Mission[]): VolunteerStats => {
+  const active = list.filter((m) => m.status !== "cancelled");
+  return {
+    totalMissions: active.length,
+    hours: active.reduce((sum, m) => sum + m.hours, 0),
+    livesSupported: active.reduce((sum, m) => sum + (m.beneficiaries ?? 0), 0),
+  };
+};
 
 export const getOpportunities = (): Opportunity[] => opportunities;
 
