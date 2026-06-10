@@ -19,14 +19,20 @@ import {
 } from "@/constants";
 import type {
   ActiveCase,
+  Alert,
+  AreaRank,
+  CaseStats,
   CaseType,
   Conversation,
   Hospital,
   Mission,
   MissionStatus,
+  NewsUpdate,
   Opportunity,
   ReportTypeId,
+  Severity,
 } from "@/types";
+import { supabase } from "@/lib/supabaseClient";
 
 export const getCaseStats = () => caseStats;
 export const getAreaRanks = () => areaRanks;
@@ -114,3 +120,147 @@ export const bedSummary = (h: Hospital) => {
 export type OccupancyBand = "high" | "medium" | "low";
 export const occupancyBand = (occupancy: number): OccupancyBand =>
   occupancy > 80 ? "high" : occupancy >= 50 ? "medium" : "low";
+
+// ---------------------------------------------------------------------------
+// LIVE Supabase accessors — citizen dashboard
+//
+// These mirror the mock accessors above but read from Supabase, mapping each
+// row into the SAME domain type so the UI is unchanged. They run client-side
+// (browser anon client), so the citizen dashboard's leaf components fetch them
+// in useEffect. The mock accessors are left intact because other screens
+// (volunteer/officer dashboards, /updates) still depend on them.
+// ---------------------------------------------------------------------------
+
+// Severity is not exposed by v_area_ranking, so we derive a visual band from
+// the case counts (only drives the ranking bar colour).
+function severityFromCases(active: number, critical: number): Severity {
+  if (critical >= 10) return "critical";
+  if (critical >= 3 || active >= 200) return "high";
+  if (active >= 80) return "moderate";
+  return "low";
+}
+
+// Map a free-text risk_level (e.g. "High") onto the Severity enum.
+function severityFromRisk(risk: string | null): Severity {
+  const r = (risk ?? "").toLowerCase();
+  if (r.includes("crit")) return "critical";
+  if (r.includes("high")) return "high";
+  if (r.includes("med") || r.includes("mod")) return "moderate";
+  if (r.includes("low")) return "low";
+  return "high";
+}
+
+// Human "x min ago" label from an ISO timestamp. Safe to use Date.now here:
+// these accessors run in useEffect (client), never in the SSR render path.
+function timeAgo(iso: string | null): string {
+  if (!iso) return "just now";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return "just now";
+  const sec = Math.max(1, Math.floor(ms / 1000));
+  if (sec < 60) return `${sec} sec ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hr${hr > 1 ? "s" : ""} ago`;
+  const day = Math.floor(hr / 24);
+  return `${day} day${day > 1 ? "s" : ""} ago`;
+}
+
+// Active/Critical numbers — VIEW v_case_tracking returns a single row.
+// The view exposes no day-over-day delta, so activeDelta/criticalDelta are 0.
+export async function fetchCaseStats(): Promise<CaseStats> {
+  const { data, error } = await supabase
+    .from("v_case_tracking")
+    .select("active_cases, critical_cases")
+    .maybeSingle();
+
+  if (error || !data) {
+    return {
+      activeCases: 0,
+      activeDelta: 0,
+      criticalCases: 0,
+      criticalDelta: 0,
+      updatedAgo: "just now",
+    };
+  }
+
+  return {
+    activeCases: data.active_cases ?? 0,
+    activeDelta: 0,
+    criticalCases: data.critical_cases ?? 0,
+    criticalDelta: 0,
+    updatedAgo: "just now",
+  };
+}
+
+// "Areas by Active Cases" — VIEW v_area_ranking, ordered by ranking.
+export async function fetchAreaRanks(): Promise<AreaRank[]> {
+  const { data, error } = await supabase
+    .from("v_area_ranking")
+    .select("area_name, active_cases, critical_cases, ranking")
+    .order("ranking", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((r) => ({
+    rank: r.ranking,
+    area: r.area_name,
+    cases: r.active_cases ?? 0,
+    severity: severityFromCases(r.active_cases ?? 0, r.critical_cases ?? 0),
+  }));
+}
+
+// HIGH RISK AREA banner — TABLE case_clusters, the row with is_banner = true.
+// Returns null when there is no banner row (the wrapper renders nothing).
+// distanceKm / precautions / nearbyAreas aren't in the schema, so they're left
+// undefined; the banner + modal render those sections conditionally.
+export async function fetchBannerAlert(): Promise<Alert | null> {
+  const { data, error } = await supabase
+    .from("case_clusters")
+    .select(
+      "disease, title, description, area_name, active_cases, critical_cases, risk_level, is_banner",
+    )
+    .eq("is_banner", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  return {
+    id: `banner-${data.area_name}`,
+    area: data.area_name,
+    title: data.title,
+    message: data.description,
+    severity: severityFromRisk(data.risk_level),
+    updatedAgo: "just now",
+    riskLevel: data.risk_level ?? "High",
+    activeCases: data.active_cases ?? undefined,
+    details: data.description ?? undefined,
+  };
+}
+
+// "Latest Updates" feed — TABLE news_updates, published rows newest first.
+// source / comments / reposts / views aren't in the schema, so they fall back
+// to neutral defaults.
+export async function fetchNewsUpdates(): Promise<NewsUpdate[]> {
+  const { data, error } = await supabase
+    .from("news_updates")
+    .select("id, title, summary, image_url, is_live, status, created_at")
+    .eq("status", "published")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((n) => ({
+    id: String(n.id),
+    title: n.title,
+    source: "AidPulse Update",
+    description: n.summary ?? "",
+    ago: timeAgo(n.created_at),
+    image: n.image_url ?? "",
+    live: n.is_live ?? false,
+    comments: 0,
+    reposts: 0,
+    views: "0",
+  }));
+}
