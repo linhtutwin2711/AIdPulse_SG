@@ -10,9 +10,9 @@ import { MiniHospitalIcon } from "@/components/map/hospital-marker";
 import { RoleSwitchCards } from "@/components/shell/role-switch-cards";
 import { useRole } from "@/components/providers/role-provider";
 import { useCases } from "@/components/providers/cases-provider";
-import { getCaseMarkers, getHospitals, occupancyBand } from "@/lib/data";
+import { fetchCaseMarkers, fetchHospitals, occupancyBand } from "@/lib/data";
 import { roleLabel } from "@/lib/ui";
-import type { ActiveCase, Hospital } from "@/types";
+import type { ActiveCase, CaseMarker, Hospital } from "@/types";
 import { cn } from "@/lib/utils";
 
 function Check({
@@ -44,8 +44,24 @@ export default function MapPage() {
   const { role } = useRole();
   const router = useRouter();
   const { cases: reportedCases, resolveCase } = useCases();
-  const cases = getCaseMarkers();
-  const hospitals = getHospitals();
+
+  // Live case clusters + hospitals from Supabase. Fetched client-side (this is a
+  // client component); on error we log and leave the layer empty rather than
+  // falling back to stale mock data.
+  const [cases, setCases] = useState<CaseMarker[]>([]);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetchCaseMarkers()
+      .then((d) => active && setCases(d))
+      .catch((err) => console.error("MapPage fetchCaseMarkers failed:", err));
+    fetchHospitals()
+      .then((d) => active && setHospitals(d))
+      .catch((err) => console.error("MapPage fetchHospitals failed:", err));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [showCases, setShowCases] = useState(true);
   const [showHospitals, setShowHospitals] = useState(true);

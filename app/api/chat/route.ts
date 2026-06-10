@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { extractReply } from "./extract-reply";
 
 /**
  * Chat proxy: the browser POSTs here, and we forward the message to the
@@ -14,21 +15,6 @@ import { NextResponse } from "next/server";
  */
 
 const WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-
-// n8n's "Respond to Webhook" can return many shapes; pull the text out of
-// whichever key the workflow used (or a raw string).
-function extractReply(data: unknown): string | null {
-  if (typeof data === "string") return data;
-  if (Array.isArray(data)) return extractReply(data[0]);
-  if (data && typeof data === "object") {
-    const obj = data as Record<string, unknown>;
-    for (const key of ["reply", "output", "text", "message", "answer", "response"]) {
-      const v = obj[key];
-      if (typeof v === "string" && v.trim()) return v;
-    }
-  }
-  return null;
-}
 
 export async function POST(req: Request) {
   if (!WEBHOOK_URL) {
@@ -50,7 +36,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Empty message." }, { status: 400 });
   }
 
+  console.log("[api/chat] incoming:", { message, sessionId: body.sessionId });
+
   try {
+    console.log("[api/chat] forwarding to n8n webhook:", WEBHOOK_URL);
     const res = await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -70,12 +59,14 @@ export async function POST(req: Request) {
 
     // n8n may reply with JSON or plain text depending on the workflow.
     const raw = await res.text();
+    console.log("[api/chat] n8n raw response:", raw);
     let reply: string | null = null;
     try {
       reply = extractReply(JSON.parse(raw));
     } catch {
       reply = raw.trim() || null;
     }
+    console.log("[api/chat] extracted reply:", reply);
 
     return NextResponse.json({
       reply: reply ?? "Sorry, I couldn't generate a response.",

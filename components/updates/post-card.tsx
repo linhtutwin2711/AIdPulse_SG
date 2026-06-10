@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   BarChart3,
   Check,
+  ExternalLink,
   MessageCircle,
   Newspaper,
   Repeat2,
@@ -41,29 +42,52 @@ export function PostCard({
       .catch(() => {});
   };
 
+  // Clicking the image or title opens the real source article in a new tab.
+  const media = (
+    <>
+      {imgOk ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={post.image}
+          alt={post.title}
+          onError={() => setImgOk(false)}
+          className="size-full object-cover"
+        />
+      ) : (
+        <div className="grid size-full place-items-center text-muted-foreground">
+          <Newspaper className="size-8" />
+        </div>
+      )}
+      {post.live && (
+        <span className="pill absolute left-3 top-3 bg-danger px-2 py-0.5 text-[10px] font-semibold text-white">
+          LIVE
+        </span>
+      )}
+      {post.url && (
+        <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+          View article <ExternalLink className="size-3.5" />
+        </span>
+      )}
+    </>
+  );
+
   return (
     <article className="surface overflow-hidden p-0">
-      {/* post image */}
-      <div className="relative h-44 w-full bg-gradient-to-br from-secondary to-card max-sm:h-36">
-        {imgOk ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={post.image}
-            alt={post.title}
-            onError={() => setImgOk(false)}
-            className="size-full object-cover"
-          />
-        ) : (
-          <div className="grid size-full place-items-center text-muted-foreground">
-            <Newspaper className="size-8" />
-          </div>
-        )}
-        {post.live && (
-          <span className="pill absolute left-3 top-3 bg-danger px-2 py-0.5 text-[10px] font-semibold text-white">
-            LIVE
-          </span>
-        )}
-      </div>
+      {/* post image — links to the real source article when available */}
+      {post.url ? (
+        <a
+          href={post.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group relative block h-44 w-full bg-gradient-to-br from-secondary to-card max-sm:h-36"
+        >
+          {media}
+        </a>
+      ) : (
+        <div className="relative h-44 w-full bg-gradient-to-br from-secondary to-card max-sm:h-36">
+          {media}
+        </div>
+      )}
 
       <div className="p-5">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -71,7 +95,13 @@ export function PostCard({
           <span aria-hidden>·</span>
           <span>{post.ago}</span>
         </div>
-        <h3 className="mt-1 text-lg font-semibold leading-snug">{post.title}</h3>
+        {post.url ? (
+          <a href={post.url} target="_blank" rel="noopener noreferrer">
+            <h3 className="mt-1 text-lg font-semibold leading-snug hover:underline">{post.title}</h3>
+          </a>
+        ) : (
+          <h3 className="mt-1 text-lg font-semibold leading-snug">{post.title}</h3>
+        )}
         <p className="mt-1 text-sm text-muted-foreground">{post.description}</p>
 
         {/* interaction row */}

@@ -30,12 +30,12 @@ export function AIPanel() {
 
   return (
     <>
-      {/* Scrim — mobile only (full-screen drawer). On desktop the drawer sits
-          beside the content, so no scrim and the page stays interactive. */}
+      {/* Scrim — on every screen. The chat is a modal overlay: the page behind
+          keeps its full size and is dimmed + blurred. Clicking it closes the chat. */}
       <div
         onClick={() => setOpen(false)}
         className={cn(
-          "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity lg:hidden",
+          "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity",
           open ? "opacity-100" : "pointer-events-none opacity-0"
         )}
       />

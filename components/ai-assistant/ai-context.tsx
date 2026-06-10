@@ -32,26 +32,35 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
   const send = useCallback(async (text: string) => {
     const clean = text.trim();
-    if (!clean) return;
+    console.log("[AI] send() called with:", { text, clean, sessionId });
+    if (!clean) {
+      console.log("[AI] send() aborted — empty message");
+      return;
+    }
     setMessages((prev) => [...prev, { id: nextId(), role: "user", text: clean }]);
     setSending(true);
 
     try {
+      console.log("[AI] POST /api/chat →", { message: clean, sessionId });
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: clean, sessionId }),
       });
+      console.log("[AI] /api/chat status:", res.status, res.ok);
       const data = await res.json();
+      console.log("[AI] /api/chat response body:", data);
       const reply =
         typeof data?.reply === "string" && data.reply
           ? data.reply
           : "Sorry, I'm having trouble responding right now. Please try again.";
+      console.log("[AI] resolved reply:", reply);
       setMessages((prev) => [
         ...prev,
         { id: nextId(), role: "assistant", text: reply },
       ]);
-    } catch {
+    } catch (err) {
+      console.error("[AI] send() failed:", err);
       setMessages((prev) => [
         ...prev,
         {
@@ -61,6 +70,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
         },
       ]);
     } finally {
+      console.log("[AI] send() done — sending=false");
       setSending(false);
     }
   }, []);

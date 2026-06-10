@@ -1,0 +1,136 @@
+{
+  "name": "AidPulse — Track Cases ingest (NEA dengue clusters)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 6 }] }
+      },
+      "id": "schedule",
+      "name": "Every 6 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 220]
+    },
+    {
+      "parameters": {
+        "url": "https://api-open.data.gov.sg/v1/public/api/datasets/d_dbfabf16158d1b0e1c420627c0819168/poll-download",
+        "options": {}
+      },
+      "id": "poll",
+      "name": "Poll NEA dengue dataset",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 220]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data.url }}",
+        "options": { "response": { "response": { "responseFormat": "text" } } }
+      },
+      "id": "download",
+      "name": "Download GeoJSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "// data.gov.sg NEA Dengue Clusters (GeoJSON) -> case_clusters rows.\n// Each cluster: LOCALITY -> area, CASE_SIZE -> active_cases, polygon centroid\n// -> lat/lng, OBJECTID -> stable source_id (upsert key). The biggest cluster\n// is flagged as the dashboard banner.\nlet raw = $input.first().json;\nlet gj = raw;\nif (typeof raw === 'string') gj = JSON.parse(raw);\nelse if (raw && typeof raw.data === 'string') gj = JSON.parse(raw.data);\nelse if (raw && typeof raw.body === 'string') gj = JSON.parse(raw.body);\nelse if (raw && raw.body) gj = raw.body;\nfunction centroid(geom){\n  if(!geom) return [null,null];\n  let ring = geom.type==='Polygon' ? geom.coordinates[0]\n           : geom.type==='MultiPolygon' ? geom.coordinates[0][0] : null;\n  if(!ring || !ring.length) return [null,null];\n  let sx=0, sy=0; for(const p of ring){ sx+=p[0]; sy+=p[1]; }\n  return [sy/ring.length, sx/ring.length]; // lat, lng\n}\nfunction titleCase(s){ return s.replace(/\\b\\w/g, c => c.toUpperCase()); }\nconst rows = [];\nfor (const f of (gj.features || [])) {\n  const p = f.properties || {};\n  const loc = (p.LOCALITY || '').trim();\n  let cases = parseInt(p.CASE_SIZE, 10); if (isNaN(cases)) cases = 0;\n  const [lat, lng] = centroid(f.geometry);\n  if (!loc || lat === null) continue;\n  const name = titleCase(loc);\n  const risk = cases >= 50 ? 'critical' : cases >= 10 ? 'high' : 'medium';\n  rows.push({\n    disease: 'dengue',\n    title: 'Dengue cluster at ' + name,\n    description: cases + ' active dengue case(s) reported by NEA at ' + name + '.',\n    area_name: name,\n    latitude: Math.round(lat * 1e6) / 1e6,\n    longitude: Math.round(lng * 1e6) / 1e6,\n    active_cases: cases,\n    critical_cases: cases >= 10 ? cases : 0,\n    risk_level: risk,\n    is_banner: false,\n    source_id: 'nea-dengue-' + p.OBJECTID\n  });\n}\nif (rows.length) {\n  let ti = 0;\n  for (let i = 1; i < rows.length; i++) if (rows[i].active_cases > rows[ti].active_cases) ti = i;\n  rows[ti].is_banner = true;\n}\nreturn [{ json: { rows } }];"
+      },
+      "id": "build",
+      "name": "Build case_clusters rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 220]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/case_clusters?source_id=like.nea-dengue-%25",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "<SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Authorization", "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clear",
+      "name": "Clear old dengue clusters",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 220],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/case_clusters?on_conflict=source_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "<SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Authorization", "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build case_clusters rows').item.json.rows) }}",
+        "options": {}
+      },
+      "id": "upsert",
+      "name": "Upsert to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Record today's totals so the dashboard can show a real day-over-day delta.\n// Yesterday's snapshot stays frozen; today's is refreshed on every run.\nconst rows = ($('Build case_clusters rows').item.json.rows) || [];\nlet a = 0, c = 0;\nfor (const r of rows) { a += r.active_cases || 0; c += r.critical_cases || 0; }\nconst d = new Date().toISOString().slice(0, 10);\nreturn [{ json: { snapshot_date: d, active_cases: a, critical_cases: c } }];"
+      },
+      "id": "snapshot",
+      "name": "Build daily snapshot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/case_stats_snapshots?on_conflict=snapshot_date",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "<SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Authorization", "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([$json]) }}",
+        "options": {}
+      },
+      "id": "snapupsert",
+      "name": "Upsert daily snapshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 220]
+    }
+  ],
+  "connections": {
+    "Every 6 hours": { "main": [[{ "node": "Poll NEA dengue dataset", "type": "main", "index": 0 }]] },
+    "Poll NEA dengue dataset": { "main": [[{ "node": "Download GeoJSON", "type": "main", "index": 0 }]] },
+    "Download GeoJSON": { "main": [[{ "node": "Build case_clusters rows", "type": "main", "index": 0 }]] },
+    "Build case_clusters rows": { "main": [[{ "node": "Clear old dengue clusters", "type": "main", "index": 0 }]] },
+    "Clear old dengue clusters": { "main": [[{ "node": "Upsert to Supabase", "type": "main", "index": 0 }]] },
+    "Upsert to Supabase": { "main": [[{ "node": "Build daily snapshot", "type": "main", "index": 0 }]] },
+    "Build daily snapshot": { "main": [[{ "node": "Upsert daily snapshot", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

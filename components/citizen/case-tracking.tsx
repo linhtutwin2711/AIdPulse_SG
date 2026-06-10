@@ -13,7 +13,7 @@ export function CaseTracking() {
     let active = true;
     fetchCaseStats()
       .then((data) => active && setS(data))
-      .catch(() => {});
+      .catch((err) => console.error("CaseTracking fetchCaseStats failed:", err));
     return () => {
       active = false;
     };

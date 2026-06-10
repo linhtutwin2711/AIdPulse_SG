@@ -14,7 +14,7 @@ export function AreaRanking() {
     let active = true;
     fetchAreaRanks()
       .then((data) => active && setRanks(data))
-      .catch(() => {});
+      .catch((err) => console.error("AreaRanking fetchAreaRanks failed:", err));
     return () => {
       active = false;
     };
