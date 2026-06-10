@@ -317,6 +317,50 @@ export async function getLatestUpdates(limit = 5): Promise<LatestUpdate[]> {
   }));
 }
 
+// Pick a display image for an update. Real ingested articles (e.g. CNA) carry
+// their own image_url; gov/RSS rows that don't get a themed stock photo keyed
+// off the headline so the feed always shows an image instead of a placeholder.
+// The lock keeps each card's image stable across renders.
+const NEWS_IMAGE_KEYWORDS: { kw: string[]; q: string }[] = [
+  { kw: ["dengue", "mosquito", "nea"], q: "mosquito,dengue" },
+  { kw: ["covid", "variant", "crowd", "mask"], q: "coronavirus,mask" },
+  { kw: ["vaccin", "booster", "immun"], q: "vaccine,vaccination" },
+  { kw: ["flu", "influenza", "fever"], q: "flu,fever" },
+  { kw: ["heat", "safety", "scdf", "weather"], q: "heatwave,weather" },
+];
+function stableLock(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % 1000;
+}
+export function newsImage(raw: string | null | undefined, text = ""): string {
+  if (raw && raw.trim()) return raw;
+  const hay = text.toLowerCase();
+  const match = NEWS_IMAGE_KEYWORDS.find((m) => m.kw.some((k) => hay.includes(k)));
+  const q = match?.q ?? "singapore,healthcare";
+  return `https://loremflickr.com/640/360/${encodeURIComponent(q)}?lock=${stableLock(text || q)}`;
+}
+
+// "View All" feed — latest_updates mapped into the NewsUpdate shape the
+// existing PostCard/feed UI consumes, so the /updates page renders live data
+// with no component changes. Engagement counts aren't tracked server-side, so
+// they start at 0 (the updates provider still layers local reposts/comments).
+export async function fetchLatestNews(limit = 30): Promise<NewsUpdate[]> {
+  const updates = await getLatestUpdates(limit);
+  return updates.map((u) => ({
+    id: u.id,
+    source: u.sourceName ?? "Gov.sg",
+    title: u.title,
+    description: u.summary ?? "",
+    ago: timeAgo(u.publishedAt),
+    image: newsImage(u.imageUrl, `${u.title} ${u.category ?? ""}`),
+    live: u.severity === "high" || u.severity === "critical",
+    comments: 0,
+    reposts: 0,
+    views: "0",
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // LIVE Supabase accessors — Track Cases (Map page)
 // ---------------------------------------------------------------------------

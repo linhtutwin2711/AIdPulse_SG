@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Bell, FileText, Map as MapIcon, Menu, Repeat2, Search } from "lucide-react";
@@ -9,8 +9,7 @@ import { PostCard } from "@/components/updates/post-card";
 import { MessagesPanel } from "@/components/updates/messages-panel";
 import { UpdatesSidebar } from "@/components/updates/updates-sidebar";
 import { useUpdates } from "@/components/providers/updates-provider";
-import { getNewsUpdates } from "@/lib/data";
-import { cn } from "@/lib/utils";
+import { fetchLatestNews } from "@/lib/data";
 import type { NewsUpdate } from "@/types";
 
 const NAV = [
@@ -50,7 +49,27 @@ function UpdatesView() {
   const params = useSearchParams();
   const focusId = params.get("post");
   const { reposts } = useUpdates();
-  const posts = getNewsUpdates();
+
+  // Live "Latest Updates" feed from Supabase (latest_updates, populated by n8n).
+  const [posts, setPosts] = useState<NewsUpdate[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    fetchLatestNews(30)
+      .then((d) => {
+        if (active) {
+          setPosts(d);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("UpdatesView fetchLatestNews failed:", err);
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [view, setView] = useState<string>("latest");
   const [chatId, setChatId] = useState<string>("alex");
@@ -134,22 +153,37 @@ function UpdatesView() {
                 </div>
               )}
 
-              {feed.map((p) => (
-                <PostCard key={p.id} post={p} defaultOpen={p.id === focusId} />
-              ))}
+              {loading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="surface overflow-hidden p-0">
+                    <div className="h-44 w-full animate-pulse bg-secondary max-sm:h-36" />
+                    <div className="space-y-2 p-5">
+                      <div className="h-3 w-1/3 animate-pulse rounded bg-secondary" />
+                      <div className="h-4 w-3/4 animate-pulse rounded bg-secondary" />
+                      <div className="h-3 w-full animate-pulse rounded bg-secondary" />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <>
+                  {feed.map((p) => (
+                    <PostCard key={p.id} post={p} defaultOpen={p.id === focusId} />
+                  ))}
 
-              {feed.length === 0 && (
-                <div className="surface flex flex-col items-center gap-2 p-10 text-center">
-                  <Repeat2 className="size-8 text-muted-foreground" />
-                  <p className="font-medium">
-                    {view === "reposts" ? "No reposts yet" : "Nothing to show"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {view === "reposts"
-                      ? "Tap the repost icon on any update and it'll appear here."
-                      : "Try a different feed or search term."}
-                  </p>
-                </div>
+                  {feed.length === 0 && (
+                    <div className="surface flex flex-col items-center gap-2 p-10 text-center">
+                      <Repeat2 className="size-8 text-muted-foreground" />
+                      <p className="font-medium">
+                        {view === "reposts" ? "No reposts yet" : "Nothing to show"}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {view === "reposts"
+                          ? "Tap the repost icon on any update and it'll appear here."
+                          : "Try a different feed or search term."}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
