@@ -1,4 +1,35 @@
-# n8n — news / updates ingest
+# n8n — AidPulse ingest workflows
+
+> Two ingest workflows feed Supabase, which the app already reads:
+> - **`case-clusters-ingest.json`** → `case_clusters` → **Track Cases** (map
+>   dots, "Areas by Active Cases" ranking, "Real-time Case Tracking" numbers).
+> - **`latest-updates-ingest.json`** → `latest_updates` → **Latest Updates** feed.
+>
+> Both upsert with the **service_role** key (server-side only). No app code
+> changes are needed — new rows just appear.
+
+## case-clusters-ingest.json — Track Cases (real NEA dengue clusters)
+
+**Schedule:** every 6 hours. **Source (real API):** data.gov.sg → **NEA Dengue
+Clusters** (`GEOJSON`, dataset `d_dbfabf16158d1b0e1c420627c0819168`). **Flow:**
+poll the dataset for a fresh download URL → download the GeoJSON → transform each
+cluster (LOCALITY → `area_name`, CASE_SIZE → `active_cases`, polygon centroid →
+`latitude`/`longitude`, OBJECTID → `source_id`) → delete the previous NEA rows
+(so cleared clusters drop off) → upsert into `case_clusters` (`on_conflict=source_id`).
+
+The dashboard's `v_case_tracking` / `v_area_ranking` views and the map's
+`fetchCaseMarkers` all read `case_clusters`, so the counts, ranking, banner and
+map markers refresh automatically. `risk_level` is derived from case size
+(≥50 critical, ≥10 high, else medium); the largest cluster gets `is_banner = true`.
+
+> Only the two `<SUPABASE_SERVICE_ROLE_KEY>` placeholders need filling in
+> (Supabase → Settings → API → service_role). Import, run once, then **Activate**.
+> Currently dengue is the only official geolocated case API for Singapore; add
+> more `case_clusters` sources (other diseases) the same way.
+
+---
+
+# Latest Updates (news) ingest
 
 > **Canonical workflow:** `latest-updates-ingest.json` → the **`latest_updates`**
 > table, which the citizen dashboard's **Latest Updates** section reads
