@@ -171,12 +171,13 @@ export function timeAgo(iso: string | null): string {
   return `${day} day${day > 1 ? "s" : ""} ago`;
 }
 
-// Active/Critical numbers — VIEW v_case_tracking returns a single row.
-// The view exposes no day-over-day delta, so activeDelta/criticalDelta are 0.
+// Active/Critical numbers — VIEW v_case_tracking returns a single row with
+// today's live totals plus the day-over-day delta vs the latest snapshot in
+// case_stats_snapshots (written by the n8n case-clusters ingest).
 export async function fetchCaseStats(): Promise<CaseStats> {
   const { data, error } = await supabase
     .from("v_case_tracking")
-    .select("active_cases, critical_cases")
+    .select("active_cases, critical_cases, active_delta, critical_delta")
     .maybeSingle();
 
   // A Supabase error (auth/network/schema) is a failure, not an empty state —
@@ -195,9 +196,9 @@ export async function fetchCaseStats(): Promise<CaseStats> {
 
   return {
     activeCases: data.active_cases ?? 0,
-    activeDelta: 0,
+    activeDelta: data.active_delta ?? 0,
     criticalCases: data.critical_cases ?? 0,
-    criticalDelta: 0,
+    criticalDelta: data.critical_delta ?? 0,
     updatedAgo: "just now",
   };
 }

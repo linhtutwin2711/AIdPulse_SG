@@ -87,6 +87,40 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1100, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Record today's totals so the dashboard can show a real day-over-day delta.\n// Yesterday's snapshot stays frozen; today's is refreshed on every run.\nconst rows = ($('Build case_clusters rows').item.json.rows) || [];\nlet a = 0, c = 0;\nfor (const r of rows) { a += r.active_cases || 0; c += r.critical_cases || 0; }\nconst d = new Date().toISOString().slice(0, 10);\nreturn [{ json: { snapshot_date: d, active_cases: a, critical_cases: c } }];"
+      },
+      "id": "snapshot",
+      "name": "Build daily snapshot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/case_stats_snapshots?on_conflict=snapshot_date",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "<SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Authorization", "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([$json]) }}",
+        "options": {}
+      },
+      "id": "snapupsert",
+      "name": "Upsert daily snapshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 220]
     }
   ],
   "connections": {
@@ -94,7 +128,9 @@
     "Poll NEA dengue dataset": { "main": [[{ "node": "Download GeoJSON", "type": "main", "index": 0 }]] },
     "Download GeoJSON": { "main": [[{ "node": "Build case_clusters rows", "type": "main", "index": 0 }]] },
     "Build case_clusters rows": { "main": [[{ "node": "Clear old dengue clusters", "type": "main", "index": 0 }]] },
-    "Clear old dengue clusters": { "main": [[{ "node": "Upsert to Supabase", "type": "main", "index": 0 }]] }
+    "Clear old dengue clusters": { "main": [[{ "node": "Upsert to Supabase", "type": "main", "index": 0 }]] },
+    "Upsert to Supabase": { "main": [[{ "node": "Build daily snapshot", "type": "main", "index": 0 }]] },
+    "Build daily snapshot": { "main": [[{ "node": "Upsert daily snapshot", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" }
 }
