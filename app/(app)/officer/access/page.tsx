@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, Loader2, Lock, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useRole } from "@/components/providers/role-provider";
+import { getHospitals } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -12,8 +13,10 @@ const STEP_LABELS = ["Identity", "Verification", "Authenticate"];
 
 export default function OfficerAccessPage() {
   const router = useRouter();
-  const { setRole } = useRole();
+  const { setRole, setOfficerHospitalId } = useRole();
+  const hospitals = getHospitals();
   const [step, setStep] = useState<Step>(0);
+  const [hospitalId, setHospitalId] = useState(hospitals[0]?.id ?? "");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -60,13 +63,19 @@ export default function OfficerAccessPage() {
               <input required placeholder="e.g. EO-SG-0481" className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none" />
             </label>
             <label className="block">
-              <span className="text-sm font-medium">Organization</span>
-              <select className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none">
-                <option>Ministry of Health (MOH)</option>
-                <option>Singapore Civil Defence Force (SCDF)</option>
-                <option>National Environment Agency (NEA)</option>
-                <option>Hospital Emergency Department</option>
+              <span className="text-sm font-medium">Hospital</span>
+              <select
+                value={hospitalId}
+                onChange={(e) => setHospitalId(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none"
+              >
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
               </select>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Volunteer opportunities you post will be listed under this hospital.
+              </span>
             </label>
             <label className="block">
               <span className="text-sm font-medium">Access Passphrase</span>
@@ -128,7 +137,7 @@ export default function OfficerAccessPage() {
             </p>
             <Button
               size="lg"
-              onClick={() => { setRole("officer"); router.push("/officer/dashboard"); }}
+              onClick={() => { setOfficerHospitalId(hospitalId); setRole("officer"); router.push("/officer/dashboard"); }}
               className="mt-2 h-12 w-full bg-gold text-black text-base hover:bg-gold/90"
             >
               Go to Officer Dashboard <ArrowRight className="size-5" />
