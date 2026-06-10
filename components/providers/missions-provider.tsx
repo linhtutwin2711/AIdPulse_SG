@@ -27,6 +27,11 @@ interface MissionsContextValue {
   // Records the mission complete and how many people it supported. That count
   // flows straight into stats.livesSupported.
   checkOut: (id: string, beneficiaries: number) => void;
+  // Volunteer cancels an assigned mission, recording why. The officer sees this
+  // under the volunteer's profile (cancelSeen starts false → unread).
+  cancelMission: (id: string, reason: string, note?: string) => void;
+  // Officer acknowledges all outstanding cancellations (clears the unread badge).
+  markCancellationsSeen: () => void;
 }
 
 const MissionsContext = createContext<MissionsContextValue | null>(null);
@@ -66,11 +71,28 @@ export function MissionsProvider({ children }: { children: React.ReactNode }) {
       // The mission you're mid-shift on (checked in, not yet checked out).
       activeMission: missions.find((m) => m.status === "ongoing") ?? null,
 
+      // A cancelled mission no longer counts as "applied" — the slot reopens so
+      // the volunteer can take it again.
       hasApplied: (opportunityId) =>
-        missions.some((m) => m.opportunityId === opportunityId),
+        missions.some((m) => m.opportunityId === opportunityId && m.status !== "cancelled"),
 
       applyToOpportunity: (opp) => {
-        if (missions.some((m) => m.opportunityId === opp.id)) return;
+        const existing = missions.find((m) => m.opportunityId === opp.id);
+        // Already holding this mission (any non-cancelled state) — nothing to do.
+        if (existing && existing.status !== "cancelled") return;
+        // Re-applying after a cancellation: revive the mission and clear the
+        // cancellation record so it drops off the officer's view.
+        if (existing) {
+          update(existing.id, {
+            status: "assigned",
+            hours: opp.hours ?? 4,
+            cancelReason: undefined,
+            cancelNote: undefined,
+            cancelledAt: undefined,
+            cancelSeen: undefined,
+          });
+          return;
+        }
         const mission: Mission = {
           id: `op-${opp.id}`,
           title: opp.title,
@@ -104,6 +126,23 @@ export function MissionsProvider({ children }: { children: React.ReactNode }) {
 
       checkOut: (id, beneficiaries) =>
         update(id, { status: "completed", beneficiaries: Math.max(0, Math.round(beneficiaries)) }),
+
+      cancelMission: (id, reason, note) =>
+        update(id, {
+          status: "cancelled",
+          hours: 0, // a cancelled mission contributes no volunteering hours
+          cancelReason: reason,
+          cancelNote: note?.trim() || undefined,
+          cancelledAt: new Date().toISOString(),
+          cancelSeen: false,
+        }),
+
+      markCancellationsSeen: () =>
+        persist(
+          missions.map((m) =>
+            m.status === "cancelled" && m.cancelSeen === false ? { ...m, cancelSeen: true } : m,
+          ),
+        ),
     };
   }, [missions]);
 

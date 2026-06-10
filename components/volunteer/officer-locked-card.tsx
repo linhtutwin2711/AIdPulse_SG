@@ -63,6 +63,7 @@ export function OfficerLockedCard() {
         </DialogHeader>
         <DialogFooter showCloseButton>
           <DialogClose
+            nativeButton={false}
             render={
               <Link
                 href="/officer/access"

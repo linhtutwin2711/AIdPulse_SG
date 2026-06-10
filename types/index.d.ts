@@ -159,6 +159,21 @@ export interface Mission {
   // ISO timestamp set at check-in; drives the minimum on-site time lock before
   // check-out is allowed.
   checkInAt?: string;
+  // Set when a volunteer cancels an assigned mission. `cancelReason` is a
+  // quick-pick label, `cancelNote` an optional free-text note. The officer sees
+  // these under the volunteer's profile; `cancelSeen` flips true once they have.
+  cancelReason?: string;
+  cancelNote?: string;
+  cancelledAt?: string; // ISO
+  cancelSeen?: boolean;
+}
+
+/** A cancellation as surfaced to the officer under a volunteer's profile. */
+export interface MissionCancellation {
+  title: string;
+  reason: string;
+  note?: string;
+  when: string; // human label, e.g. "2 days ago" or a date
 }
 
 export interface VolunteerStats {
@@ -182,6 +197,16 @@ export interface Opportunity {
   matched?: boolean;
   // Estimated shift length; carried onto the mission when a volunteer applies.
   hours?: number;
+  // How many volunteers are needed (capacity). Officer sets this when posting;
+  // the volunteer list shows filled/slots (e.g. 1/5).
+  slots?: number;
+  // Volunteers already signed up before the current user (seed baseline). The
+  // signed-in volunteer's own active application is added on top of this.
+  filled?: number;
+  // ISO timestamp set when an officer posts the opportunity. Drives the "New"
+  // pill and newest-first ordering in the volunteer list. Undefined for the
+  // original seed opportunities.
+  createdAt?: string;
 }
 
 /** A volunteer as seen on the officer roster (their live impact stats). */
@@ -193,6 +218,8 @@ export interface VolunteerProfile {
   stats: VolunteerStats;
   // True for the signed-in volunteer, whose stats are computed live.
   you?: boolean;
+  // Missions this volunteer cancelled, shown to the officer under their profile.
+  cancellations?: MissionCancellation[];
 }
 
 export interface ChatMessage {

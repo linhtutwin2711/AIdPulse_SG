@@ -9,6 +9,7 @@ import { UpdatesProvider } from "@/components/providers/updates-provider";
 import { MessagesProvider } from "@/components/providers/messages-provider";
 import { FriendsProvider } from "@/components/providers/friends-provider";
 import { MissionsProvider } from "@/components/providers/missions-provider";
+import { OpportunitiesProvider } from "@/components/providers/opportunities-provider";
 import { SettingsProvider } from "@/components/providers/settings-provider";
 import { AIProvider } from "@/components/ai-assistant/ai-context";
 
@@ -33,9 +34,11 @@ export default function RootLayout({
                 <MessagesProvider>
                   <FriendsProvider>
                     <MissionsProvider>
-                      <SettingsProvider>
-                        <AIProvider>{children}</AIProvider>
-                      </SettingsProvider>
+                      <OpportunitiesProvider>
+                        <SettingsProvider>
+                          <AIProvider>{children}</AIProvider>
+                        </SettingsProvider>
+                      </OpportunitiesProvider>
                     </MissionsProvider>
                   </FriendsProvider>
                 </MessagesProvider>
