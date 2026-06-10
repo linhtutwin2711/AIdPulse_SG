@@ -21,6 +21,7 @@ import type {
   ActiveCase,
   Alert,
   AreaRank,
+  CaseMarker,
   CaseStats,
   CaseType,
   Conversation,
@@ -278,4 +279,95 @@ export async function fetchNewsUpdates(): Promise<NewsUpdate[]> {
     reposts: 0,
     views: "0",
   }));
+}
+
+// ---------------------------------------------------------------------------
+// LIVE Supabase accessors — Track Cases (Map page)
+// ---------------------------------------------------------------------------
+
+// case_clusters.disease (e.g. "covid_19", "influenza") → the CaseType enum the
+// map legend + filters use. Unknown diseases fall back to "other".
+function caseTypeFromDisease(disease: string | null): CaseType {
+  const d = (disease ?? "").toLowerCase();
+  if (d.includes("dengue")) return "dengue";
+  if (d.includes("covid")) return "covid";
+  if (d.includes("flu") || d.includes("influenza")) return "flu";
+  if (d.includes("heat")) return "heatstroke";
+  if (d.includes("food")) return "foodborne";
+  return "other";
+}
+
+// Case cluster dots on the map — TABLE case_clusters, one marker per cluster.
+// Rows without coordinates can't be placed, so they're skipped.
+export async function fetchCaseMarkers(): Promise<CaseMarker[]> {
+  const { data, error } = await supabase
+    .from("case_clusters")
+    .select(
+      "disease, area_name, latitude, longitude, active_cases, critical_cases, risk_level",
+    );
+
+  if (error) throw error;
+  if (!data) return [];
+
+  return data
+    .filter((c) => c.latitude != null && c.longitude != null)
+    .map((c) => ({
+      // area_name is unique per cluster in the seed; avoids depending on an id column.
+      id: `cluster-${c.area_name}`,
+      area: c.area_name,
+      type: caseTypeFromDisease(c.disease),
+      // Trust an explicit risk_level; otherwise derive the band from case counts.
+      severity:
+        severityFromRisk(c.risk_level) ??
+        severityFromCases(c.active_cases ?? 0, c.critical_cases ?? 0),
+      cases: c.active_cases ?? 0,
+      lat: c.latitude,
+      lng: c.longitude,
+    }));
+}
+
+// Hospital markers + bed availability — TABLE hospitals joined to hospital_beds.
+// Bed rows are aggregated per hospital (total/occupied/available + occupancy %)
+// and each bed row becomes a "department" line in the hospital detail panel.
+// Two queries joined in JS so we don't depend on a PostgREST FK embedding.
+export async function fetchHospitals(): Promise<Hospital[]> {
+  const [hRes, bRes] = await Promise.all([
+    supabase.from("hospitals").select("id, name, address, latitude, longitude"),
+    supabase
+      .from("hospital_beds")
+      .select("hospital_id, bed_type, total_beds, available_beds, occupied_beds"),
+  ]);
+
+  if (hRes.error) throw hRes.error;
+  if (bRes.error) throw bRes.error;
+
+  const beds = bRes.data ?? [];
+
+  return (hRes.data ?? [])
+    .filter((h) => h.latitude != null && h.longitude != null)
+    .map((h) => {
+      const rows = beds.filter((b) => b.hospital_id === h.id);
+      const totalBeds = rows.reduce((s, b) => s + (b.total_beds ?? 0), 0);
+      const occupied = rows.reduce((s, b) => s + (b.occupied_beds ?? 0), 0);
+      const available = rows.reduce((s, b) => s + (b.available_beds ?? 0), 0);
+      const occupancy =
+        totalBeds > 0 ? Math.round((occupied / totalBeds) * 100) : 0;
+
+      return {
+        id: String(h.id),
+        name: h.name,
+        lat: h.latitude,
+        lng: h.longitude,
+        occupancy,
+        totalBeds,
+        occupied,
+        available,
+        address: h.address ?? undefined,
+        departments: rows.map((b) => ({
+          name: b.bed_type,
+          total: b.total_beds ?? 0,
+          occupied: b.occupied_beds ?? 0,
+        })),
+      };
+    });
 }
