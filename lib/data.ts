@@ -256,13 +256,16 @@ export async function fetchBannerAlert(): Promise<Alert | null> {
 }
 
 // "Latest Updates" feed — TABLE news_updates, published rows newest first.
-// source / comments / reposts / views aren't in the schema, so they fall back
-// to neutral defaults.
+// Ordered by published_at (the article's real publish time, set by the n8n
+// ingest) and falling back to created_at for manually-added rows. source /
+// comments / reposts / views aren't in the schema, so they fall back to
+// neutral defaults; category (if present) is shown as the source label.
 export async function fetchNewsUpdates(): Promise<NewsUpdate[]> {
   const { data, error } = await supabase
     .from("news_updates")
-    .select("id, title, summary, image_url, is_live, status, created_at")
+    .select("id, title, summary, image_url, category, is_live, status, published_at, created_at")
     .eq("status", "published")
+    .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -271,9 +274,9 @@ export async function fetchNewsUpdates(): Promise<NewsUpdate[]> {
   return data.map((n) => ({
     id: String(n.id),
     title: n.title,
-    source: "AidPulse Update",
+    source: n.category ? String(n.category) : "AidPulse Update",
     description: n.summary ?? "",
-    ago: timeAgo(n.created_at),
+    ago: timeAgo(n.published_at ?? n.created_at),
     image: n.image_url ?? "",
     live: n.is_live ?? false,
     comments: 0,

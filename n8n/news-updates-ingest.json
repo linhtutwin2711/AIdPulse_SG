@@ -1,0 +1,80 @@
+{
+  "name": "AidPulse — Latest News ingest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 1 }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://newsdata.io/api/1/news",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "<NEWSDATA_API_KEY>" },
+            { "name": "country", "value": "sg" },
+            { "name": "category", "value": "health" },
+            { "name": "language", "value": "en" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetchNews",
+      "name": "NewsData.io (SG health)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map NewsData.io articles -> news_updates rows. source_url (UNIQUE) dedupes.\nconst res = $input.first().json;\nconst articles = res.results || [];\nconst rows = articles\n  .filter(a => a && a.link && a.title)\n  .map(a => ({\n    title: a.title,\n    summary: a.description || null,\n    image_url: a.image_url || null,\n    source_url: a.link,\n    category: Array.isArray(a.category) ? a.category[0] : (a.category || null),\n    // NewsData pubDate looks like \"2026-06-10 09:30:00\" (UTC) -> ISO timestamptz\n    published_at: a.pubDate ? a.pubDate.replace(' ', 'T') + 'Z' : null,\n    status: 'published',\n    is_live: false,\n  }));\nreturn [{ json: { rows } }];"
+      },
+      "id": "mapRows",
+      "name": "Map -> news_updates rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/news_updates?on_conflict=source_url",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "<SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Authorization", "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "upsert",
+      "name": "Upsert to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "Every hour": { "main": [[{ "node": "NewsData.io (SG health)", "type": "main", "index": 0 }]] },
+    "NewsData.io (SG health)": { "main": [[{ "node": "Map -> news_updates rows", "type": "main", "index": 0 }]] },
+    "Map -> news_updates rows": { "main": [[{ "node": "Upsert to Supabase", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
