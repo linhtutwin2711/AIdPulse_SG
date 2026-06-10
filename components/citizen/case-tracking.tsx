@@ -1,9 +1,24 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Activity, TrendingUp } from "lucide-react";
-import { getCaseStats } from "@/lib/data";
+import { fetchCaseStats } from "@/lib/data";
 import { deltaText } from "@/lib/ui";
+import type { CaseStats } from "@/types";
 
 export function CaseTracking() {
-  const s = getCaseStats();
+  const [s, setS] = useState<CaseStats | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchCaseStats()
+      .then((data) => active && setS(data))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="surface p-5">
       <div className="flex items-center justify-between">
@@ -19,9 +34,9 @@ export function CaseTracking() {
             <Activity className="size-4" />
             <span className="text-xs font-medium text-muted-foreground">Active Cases</span>
           </div>
-          <p className="mt-2 text-3xl font-bold">{s.activeCases}</p>
+          <p className="mt-2 text-3xl font-bold">{s ? s.activeCases : "—"}</p>
           <p className="mt-1 flex items-center gap-1 text-xs text-success">
-            <TrendingUp className="size-3" /> {deltaText(s.activeDelta)}
+            <TrendingUp className="size-3" /> {s ? deltaText(s.activeDelta) : "—"}
           </p>
         </div>
         <div className="surface-muted p-4">
@@ -29,9 +44,9 @@ export function CaseTracking() {
             <Activity className="size-4" />
             <span className="text-xs font-medium text-muted-foreground">Critical Cases</span>
           </div>
-          <p className="mt-2 text-3xl font-bold">{s.criticalCases}</p>
+          <p className="mt-2 text-3xl font-bold">{s ? s.criticalCases : "—"}</p>
           <p className="mt-1 flex items-center gap-1 text-xs text-danger">
-            <TrendingUp className="size-3" /> {deltaText(s.criticalDelta)}
+            <TrendingUp className="size-3" /> {s ? deltaText(s.criticalDelta) : "—"}
           </p>
         </div>
       </div>

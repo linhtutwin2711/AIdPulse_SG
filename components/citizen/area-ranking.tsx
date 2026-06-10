@@ -1,11 +1,26 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Map as MapIcon } from "lucide-react";
-import { getAreaRanks } from "@/lib/data";
+import { fetchAreaRanks } from "@/lib/data";
 import { severityDot } from "@/lib/ui";
+import type { AreaRank } from "@/types";
 
 export function AreaRanking() {
-  const ranks = getAreaRanks();
-  const max = Math.max(...ranks.map((r) => r.cases));
+  const [ranks, setRanks] = useState<AreaRank[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchAreaRanks()
+      .then((data) => active && setRanks(data))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const max = Math.max(1, ...ranks.map((r) => r.cases));
   return (
     <div className="surface p-5">
       <div className="flex items-center justify-between">

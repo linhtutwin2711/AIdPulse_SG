@@ -1,11 +1,26 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BarChart3, ChevronRight, MessageCircle, Repeat2 } from "lucide-react";
-import { getNewsUpdates } from "@/lib/data";
+import { fetchNewsUpdates } from "@/lib/data";
 import { NewsThumb } from "./news-thumb";
+import type { NewsUpdate } from "@/types";
 
 export function UpdatesList() {
   // Homepage shows only a brief preview; the full feed lives at /updates.
-  const updates = getNewsUpdates().slice(0, 4);
+  const [updates, setUpdates] = useState<NewsUpdate[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchNewsUpdates()
+      .then((data) => active && setUpdates(data.slice(0, 4)))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="surface p-5">
       <div className="flex items-center justify-between">
