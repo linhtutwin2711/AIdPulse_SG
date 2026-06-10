@@ -8,39 +8,42 @@
 
 ## latest-updates-ingest.json (current)
 
-**Schedule:** every 15 minutes. **Source:** Google News RSS, queried for
-Singapore public-health topics (dengue / COVID / flu / vaccine / outbreak /
-hospital / MOH / NEA / public health). **Flow:** fetch → normalize + **health
-keyword filter** → de-dupe by `source_url` → upsert into `latest_updates`
+**Schedule:** every 15 minutes. **Sources:** trusted public-health / pandemic
+authorities via RSS — **WHO** (who.int) and **UN News – Health** (news.un.org).
+**Flow:** read feeds → for each article fetch its page and read **`og:image`**
+(the real article photo) → de-dupe by `source_url` → upsert into `latest_updates`
 (`on_conflict=source_url`, `Prefer: resolution=merge-duplicates`). The UNIQUE
 constraint on `source_url` is the final dedupe guard, so re-runs never duplicate.
 
-Why Google News: government agencies (MOH/NEA) don't publish reliable RSS, and
-general outlets (e.g. CNA) rarely have Singapore-health items on a given day. The
-Google News query aggregates real health articles from many outlets. These feeds
-carry **no image**, so `image_url` is left null and the app renders a themed
-local image (`public/images/news/health-*.svg`) keyed off the headline — the
-article's own image is used instead whenever a feed does provide one.
+Why these sources: government agencies (MOH/NEA) don't publish reliable RSS,
+general outlets rarely have health items on a given day, and Google News hides
+the real article URL. WHO/UN feeds give **real pandemic articles with real photos
+and working links** to popular, trusted sites. The *Normalize + og:image* node
+fetches each article's `og:image`, so the app shows the genuine news photo; only
+items with a real photo are kept (a themed local SVG is the last-resort fallback
+in the app for any row that still lacks an image).
+
+Add more sources by appending feed URLs in the *Health sources* node — CNA and
+The Straits Times (direct-URL feeds) also work; `source_name` is derived from the
+article domain.
 
 ### Setup
 1. Supabase → **Settings → API → `service_role` key**. Replace both
    `<SUPABASE_SERVICE_ROLE_KEY>` placeholders. service_role is required (RLS
    only grants anon **read**; writes bypass RLS). Keep it in n8n only — never in
    the browser app. Prefer an n8n **Credential** over an inline value.
-2. (Optional) tweak the query keywords in the *Google News (SG health)* node
-   URL, or add another RSS source — the *Normalize + health filter* node already
-   keeps only health items, so off-topic feeds are safe to add.
-3. Import `latest-updates-ingest.json`, run once, confirm rows land in
+2. Import `latest-updates-ingest.json`, run once, confirm rows land in
    `latest_updates`, then **Activate**.
 
 ### Row mapping (RSS → latest_updates)
-| latest_updates | RSS field |
+| latest_updates | source |
 |---|---|
-| `title` | `title` with the trailing " - Publisher" stripped |
-| `source_name` | the stripped publisher (or `creator`) |
-| `source_url` (UNIQUE) | `link` |
-| `image_url` | feed image if present, else null → themed local fallback |
-| `category` | `Health` |
+| `title` | feed `title` |
+| `summary` | feed `contentSnippet` / `summary` (HTML stripped) |
+| `source_name` | derived from the article domain (WHO / UN News / …) |
+| `source_url` (UNIQUE) | article `link` |
+| `image_url` | the article's `og:image` (real photo) |
+| `category` | `Public Health` |
 | `published_at` | `isoDate` / `pubDate` |
 
 ---

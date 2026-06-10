@@ -13,35 +13,42 @@
     },
     {
       "parameters": {
-        "url": "https://news.google.com/rss/search?q=Singapore%20%28dengue%20OR%20COVID%20OR%20influenza%20OR%20flu%20OR%20vaccine%20OR%20outbreak%20OR%20measles%20OR%20hospital%20OR%20MOH%20OR%20NEA%20OR%20%22public%20health%22%29%20when%3A30d&hl=en-SG&gl=SG&ceid=SG:en",
-        "options": {}
+        "jsCode": "// Trusted, public health / pandemic RSS sources (real article URLs + real\n// article photos via og:image). Add more health feeds freely.\nreturn [\n  { json: { url: 'https://www.who.int/rss-feeds/news-english.xml' } },\n  { json: { url: 'https://news.un.org/feed/subscribe/en/news/topic/health/feed/rss.xml' } }\n];"
       },
+      "id": "sources",
+      "name": "Health sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 200]
+    },
+    {
+      "parameters": { "url": "={{ $json.url }}", "options": {} },
       "id": "rss",
-      "name": "Google News (SG health)",
+      "name": "Read feed",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1.1,
-      "position": [240, 200],
+      "position": [480, 200],
       "continueOnFail": true
     },
     {
       "parameters": {
-        "jsCode": "// Normalize Google News (or any RSS) entries -> latest_updates rows, keeping\n// only health items. Google News titles look like 'Headline - Publisher', so\n// we split the publisher off into source_name. These feeds carry no image, so\n// image_url is left null and the app fills a themed local image at render.\nconst RX = /\\b(dengue|covid|coronavirus|vaccin\\w*|influenza|flu|virus\\w*|hospitals?|outbreaks?|diseases?|measles|hfmd|mosquito\\w*|infections?|healthcare|health|wellness|booster|epidemic|pandemic|fever|diabetes|cancer|MOH|NEA|HSA|HPB)\\b/i;\nfunction pickImg(o){ if(!o) return null; if(typeof o==='string') return o; return (o.$ && o.$.url) || o.url || null; }\nconst rows = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const link = j.link || j.guid;\n  let title = (j.title || '').trim();\n  if (!link || !title) continue;\n  let source = j.creator || '';\n  const m = title.match(/^(.*?)\\s+-\\s+([^-]+)$/);\n  if (m) { title = m[1].trim(); if (!source) source = m[2].trim(); }\n  if (!RX.test(title + ' ' + (j.contentSnippet || ''))) continue; // health-only filter\n  rows.push({\n    title: title.slice(0, 300),\n    summary: null,\n    source_name: (source || 'Google News').slice(0, 60),\n    source_url: link,\n    category: 'Health',\n    location: 'Singapore',\n    severity: null,\n    image_url: pickImg(j.enclosure) || pickImg(j['media:thumbnail']) || pickImg(j['media:content']) || null,\n    published_at: j.isoDate || j.pubDate || null\n  });\n}\nreturn rows.map((r) => ({ json: r }));"
+        "jsCode": "// Normalize + enrich: for each article fetch its page and read og:image so the\n// card shows the real photo. source_name is derived from the link domain.\n// Only items with a real photo are kept. Runs once for all items (async).\nfunction srcOf(link){\n  if (link.includes('who.int')) return 'World Health Organization';\n  if (link.includes('news.un.org')) return 'UN News';\n  if (link.includes('cdc.gov')) return 'US CDC';\n  if (link.includes('channelnewsasia')) return 'CNA';\n  if (link.includes('straitstimes')) return 'The Straits Times';\n  try { return new URL(link).hostname.replace(/^www\\./, ''); } catch (e) { return 'Health News'; }\n}\nconst rows = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const link = j.link || j.guid;\n  const title = (j.title || '').trim();\n  if (!link || !title) continue;\n  let image = null;\n  try {\n    const html = await this.helpers.httpRequest({ url: link, headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 12000 });\n    const m = String(html).match(/property=[\"']og:image[\"'][^>]+content=[\"']([^\"']+)/i)\n          || String(html).match(/name=[\"']twitter:image[\"'][^>]+content=[\"']([^\"']+)/i);\n    if (m) image = m[1];\n  } catch (e) {}\n  if (!image) continue; // keep only items with a real photo\n  rows.push({\n    title: title.slice(0, 300),\n    summary: (j.contentSnippet || j.summary || '').replace(/<[^>]+>/g, '').trim().slice(0, 300) || null,\n    source_name: srcOf(link),\n    source_url: link,\n    category: 'Public Health',\n    location: 'Global',\n    severity: null,\n    image_url: image,\n    published_at: j.isoDate || j.pubDate || null\n  });\n}\nreturn rows.map((r) => ({ json: r }));"
       },
       "id": "normalize",
-      "name": "Normalize + health filter",
+      "name": "Normalize + og:image",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [480, 200]
+      "position": [720, 200]
     },
     {
       "parameters": {
-        "jsCode": "// De-dupe by source_url and emit a single array so the upsert is one request.\n// Supabase's UNIQUE(source_url) is the final guard.\nconst seen = new Set();\nconst rows = [];\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (!r || !r.source_url || seen.has(r.source_url)) continue;\n  seen.add(r.source_url);\n  rows.push(r);\n}\nreturn [{ json: { rows: rows.slice(0, 15) } }];"
+        "jsCode": "// De-dupe by source_url and emit a single array so the upsert is one request.\nconst seen = new Set();\nconst rows = [];\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (!r || !r.source_url || seen.has(r.source_url)) continue;\n  seen.add(r.source_url);\n  rows.push(r);\n}\nreturn [{ json: { rows: rows.slice(0, 15) } }];"
       },
       "id": "collect",
       "name": "Collect rows",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [720, 200]
+      "position": [960, 200]
     },
     {
       "parameters": {
@@ -65,13 +72,14 @@
       "name": "Upsert to Supabase",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, 200]
+      "position": [1200, 200]
     }
   ],
   "connections": {
-    "Every 15 min": { "main": [[{ "node": "Google News (SG health)", "type": "main", "index": 0 }]] },
-    "Google News (SG health)": { "main": [[{ "node": "Normalize + health filter", "type": "main", "index": 0 }]] },
-    "Normalize + health filter": { "main": [[{ "node": "Collect rows", "type": "main", "index": 0 }]] },
+    "Every 15 min": { "main": [[{ "node": "Health sources", "type": "main", "index": 0 }]] },
+    "Health sources": { "main": [[{ "node": "Read feed", "type": "main", "index": 0 }]] },
+    "Read feed": { "main": [[{ "node": "Normalize + og:image", "type": "main", "index": 0 }]] },
+    "Normalize + og:image": { "main": [[{ "node": "Collect rows", "type": "main", "index": 0 }]] },
     "Collect rows": { "main": [[{ "node": "Upsert to Supabase", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" }

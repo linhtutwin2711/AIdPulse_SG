@@ -351,6 +351,7 @@ export async function fetchLatestNews(limit = 30): Promise<NewsUpdate[]> {
     comments: 0,
     reposts: 0,
     views: "0",
+    url: u.sourceUrl ?? undefined,
   }));
 }
 

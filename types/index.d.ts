@@ -33,6 +33,7 @@ export interface NewsUpdate {
   comments: number;
   reposts: number;
   views: string; // e.g. "12.4K"
+  url?: string; // real source article URL (opens externally when present)
 }
 
 // Real-time public-health update, ingested into the `latest_updates` table by
