@@ -47,7 +47,6 @@ export default function LandingPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState(0);
-  const [devBypass, setDevBypass] = useState(false);
 
   const country = countries.find((c) => c.iso === iso) ?? defaultCountry;
   const fullPhone = `${country.dial} ${phone}`.trim();
@@ -62,10 +61,9 @@ export default function LandingPage() {
   const sendCode = async () => {
     setError("");
     setBusy(true);
-    const { ok, error, devBypass } = await requestOtp(country.dial + phone);
+    const { ok, error } = await requestOtp(country.dial + phone);
     setBusy(false);
     if (!ok) return setError(error ?? "Enter a valid phone number.");
-    setDevBypass(Boolean(devBypass));
     setStage("otp");
     setCode("");
     setCountdown(RESEND_SECONDS);
@@ -255,13 +253,7 @@ export default function LandingPage() {
                 )}
               </div>
 
-              {devBypass ? (
-                <p className="rounded-lg bg-info/10 px-3 py-2 text-xs text-info">
-                  Dev mode — no SMS sent. Enter <span className="font-semibold">000000</span> to continue.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">A 6-digit code was sent by SMS. It expires in a few minutes.</p>
-              )}
+              <p className="text-xs text-muted-foreground">A 6-digit code was sent by SMS. It expires in a few minutes.</p>
             </div>
           )}
 

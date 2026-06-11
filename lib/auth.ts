@@ -5,9 +5,7 @@
 // /api/otp routes return a clear "not configured" error and the UI shows it.
 
 export type AuthMode = "signup" | "login";
-// `devBypass` is set by /api/otp/send when OTP_DEV_BYPASS=true so the UI can
-// hint which fixed code to enter (no real SMS was sent).
-export type AuthResult = { ok: boolean; error?: string; devBypass?: boolean };
+export type AuthResult = { ok: boolean; error?: string };
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -29,9 +27,9 @@ export async function requestOtp(phone: string): Promise<AuthResult> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone: toE164(phone) }),
     });
-    const data = (await res.json().catch(() => ({}))) as { error?: string; devBypass?: boolean };
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) return { ok: false, error: data.error ?? "Couldn't send the code." };
-    return { ok: true, devBypass: data.devBypass };
+    return { ok: true };
   } catch {
     return { ok: false, error: "Network error. Please try again." };
   }

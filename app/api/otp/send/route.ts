@@ -23,12 +23,6 @@ const TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const SERVICE = process.env.TWILIO_VERIFY_SERVICE_SID;
 const configured = Boolean(SID && TOKEN && SERVICE);
 
-// Dev bypass: when OTP_DEV_BYPASS=true we skip Twilio entirely (no SMS, no
-// credit used) so you can click through sign-up during development/demos. The
-// verify route then accepts OTP_DEV_CODE (default "000000"). Set the flag to
-// false / remove it to resume real SMS. Never enable it in production.
-const devBypass = process.env.OTP_DEV_BYPASS === "true";
-
 // E.164: a leading + then 8–15 digits (covers SG +65######## and intl numbers).
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -47,11 +41,6 @@ export async function POST(req: Request) {
   const phone = body.phone?.trim() ?? "";
   if (!E164.test(phone)) {
     return NextResponse.json({ error: "Enter a valid phone number." }, { status: 400 });
-  }
-
-  if (devBypass) {
-    console.log("[api/otp/send] DEV BYPASS — no SMS sent. Use the dev code to verify.");
-    return NextResponse.json({ ok: true, devBypass: true });
   }
 
   if (!configured) {

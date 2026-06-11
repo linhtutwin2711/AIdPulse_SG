@@ -12,10 +12,6 @@ const TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const SERVICE = process.env.TWILIO_VERIFY_SERVICE_SID;
 const configured = Boolean(SID && TOKEN && SERVICE);
 
-// Mirror of the send route's dev bypass (see app/api/otp/send/route.ts).
-const devBypass = process.env.OTP_DEV_BYPASS === "true";
-const DEV_CODE = process.env.OTP_DEV_CODE || "000000";
-
 const E164 = /^\+[1-9]\d{7,14}$/;
 
 export async function POST(req: Request) {
@@ -30,11 +26,6 @@ export async function POST(req: Request) {
   const code = body.code?.trim() ?? "";
   if (!E164.test(phone) || !/^\d{4,8}$/.test(code)) {
     return NextResponse.json({ error: "Invalid code." }, { status: 400 });
-  }
-
-  if (devBypass) {
-    if (code === DEV_CODE) return NextResponse.json({ ok: true });
-    return NextResponse.json({ error: `Dev mode — enter ${DEV_CODE}.` }, { status: 401 });
   }
 
   if (!configured) {
