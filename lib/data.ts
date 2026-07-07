@@ -479,9 +479,11 @@ export async function fetchCaseMarkers(): Promise<CaseMarker[]> {
 
   return data
     .filter((c) => c.latitude != null && c.longitude != null)
-    .map((c) => ({
-      // area_name is unique per cluster in the seed; avoids depending on an id column.
-      id: `cluster-${c.area_name}`,
+    .map((c, i) => ({
+      // One area can hold several clusters (e.g. a dengue AND a covid cluster),
+      // so area_name alone isn't unique. Qualify by disease + row index to keep
+      // ids (and the React keys derived from them) collision-free.
+      id: `cluster-${c.area_name}-${caseTypeFromDisease(c.disease)}-${i}`,
       area: c.area_name,
       type: caseTypeFromDisease(c.disease),
       // Trust an explicit risk_level; otherwise derive the band from case counts.

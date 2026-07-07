@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Award, Check, Clock, MapPin, Navigation, Plus, Search, ShieldCheck, Siren, Users } from "lucide-react";
-import { loadVolunteerSkills, matchOpportunities } from "@/lib/certificate-ai";
+import { matchOpportunities } from "@/lib/certificate-ai";
+import { fetchVolunteerSkills, phoneKey } from "@/lib/volunteer";
 import { urgencyClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import { useMissions } from "@/components/providers/missions-provider";
 import { useOpportunities } from "@/components/providers/opportunities-provider";
+import { useProfile } from "@/components/providers/profile-provider";
 import { Button } from "@/components/ui/button";
 import { VolunteerNav } from "@/components/volunteer/volunteer-nav";
 
@@ -21,12 +23,21 @@ const TABS: { id: Tab; label: string }[] = [
 export default function OpportunitiesPage() {
   const { opportunities: all } = useOpportunities();
   const { hasApplied, applyToOpportunity } = useMissions();
+  const { profile } = useProfile();
   const [tab, setTab] = useState<Tab>("all");
 
-  // Skills the certificate AI extracted at registration (localStorage; read
-  // after mount to stay hydration-safe). Empty until the user registers.
+  // Skills the certificate AI extracted at registration — loaded from Supabase
+  // by phone (falls back to localStorage). Empty until the user registers.
   const [mySkills, setMySkills] = useState<string[]>([]);
-  useEffect(() => setMySkills(loadVolunteerSkills()), []);
+  useEffect(() => {
+    let active = true;
+    fetchVolunteerSkills(phoneKey(profile.countryCode, profile.phone)).then((s) => {
+      if (active) setMySkills(s);
+    });
+    return () => {
+      active = false;
+    };
+  }, [profile.countryCode, profile.phone]);
 
   // "Certificate Match" uses the AI skill profile when one exists; otherwise
   // it falls back to the seeded `matched` flag.

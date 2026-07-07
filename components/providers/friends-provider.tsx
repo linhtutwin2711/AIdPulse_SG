@@ -2,7 +2,10 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { initialFriendIds, peopleDirectory } from "@/constants";
+import { phoneKey } from "@/lib/volunteer";
+import { fetchFriendIds, saveFriendIds } from "@/lib/user-state";
 import { useMessages } from "./messages-provider";
+import { useProfile } from "./profile-provider";
 import type { Friend } from "@/types";
 
 interface FriendsContextValue {
@@ -20,23 +23,41 @@ const STORAGE_KEY = "aidpulse:friends";
 export function FriendsProvider({ children }: { children: React.ReactNode }) {
   // Adding a friend opens a DM thread, so we lean on the messages provider.
   const { addConversation } = useMessages();
+  const { profile } = useProfile();
+  const phone = phoneKey(profile.countryCode, profile.phone);
   const [friendIds, setFriendIds] = useState<string[]>(initialFriendIds);
 
+  // Load friends: from Supabase by phone when available, else localStorage.
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) setFriendIds(JSON.parse(saved));
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    let active = true;
+    fetchFriendIds(phone).then((ids) => {
+      if (!active) return;
+      if (ids !== null) {
+        setFriendIds(ids);
+        return;
+      }
+      try {
+        const saved = window.localStorage.getItem(STORAGE_KEY);
+        if (saved) setFriendIds(JSON.parse(saved));
+      } catch {
+        /* ignore */
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [phone]);
 
   const persist = (next: string[]) => {
     setFriendIds(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
+    if (phone) {
+      saveFriendIds(phone, next);
+    } else {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
     }
   };
 
@@ -66,7 +87,8 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
       },
       removeFriend: (id) => persist(friendIds.filter((x) => x !== id)),
     };
-  }, [friendIds, addConversation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friendIds, addConversation, phone]);
 
   return <FriendsContext.Provider value={value}>{children}</FriendsContext.Provider>;
 }

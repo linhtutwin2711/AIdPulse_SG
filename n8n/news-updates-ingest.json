@@ -49,7 +49,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/news_updates?on_conflict=source_url",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/news_updates?on_conflict=source_url",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

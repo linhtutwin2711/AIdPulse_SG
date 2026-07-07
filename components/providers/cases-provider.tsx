@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { fetchPublicReports, submitReport } from "@/lib/data";
+import { resolveReport } from "@/lib/user-state";
 import { SG_CENTER } from "@/constants";
 import type { ActiveCase, CaseType, ReportTypeId, RiskLevel } from "@/types";
 
@@ -107,8 +108,12 @@ export function CasesProvider({ children }: { children: React.ReactNode }) {
     return item;
   };
 
-  const resolveCase = (id: string) =>
+  const resolveCase = (id: string) => {
     setCases((prev) => prev.map((c) => (c.id === id ? { ...c, status: "resolved" } : c)));
+    // Persist to Supabase for real (Supabase-sourced) reports. No-op for the
+    // optimistic "ac-…" ids that only exist in this session.
+    resolveReport(id).catch((err) => console.error("resolveCase persist failed:", err));
+  };
 
   const value = useMemo<CasesContextValue>(
     () => ({ cases, addCase, resolveCase }),

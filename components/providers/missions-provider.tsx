@@ -2,6 +2,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { deriveVolunteerStats, getMissions } from "@/lib/data";
+import { phoneKey } from "@/lib/volunteer";
+import { fetchUserMissions, saveUserMissions } from "@/lib/user-state";
+import { useProfile } from "./profile-provider";
 import type { Mission, Opportunity, VolunteerStats } from "@/types";
 
 /**
@@ -40,24 +43,41 @@ const STORAGE_KEY = "aidpulse:missions";
 const newCode = () => `AID-${Math.floor(1000 + Math.random() * 9000)}`;
 
 export function MissionsProvider({ children }: { children: React.ReactNode }) {
+  const { profile } = useProfile();
+  const phone = phoneKey(profile.countryCode, profile.phone);
   const [missions, setMissions] = useState<Mission[]>(() => getMissions());
 
-  // Hydrate any locally-saved progress after mount (avoids SSR mismatch).
+  // Hydrate missions: from Supabase by phone when available, else localStorage.
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) setMissions(JSON.parse(saved));
-    } catch {
-      /* ignore malformed storage */
-    }
-  }, []);
+    let active = true;
+    fetchUserMissions(phone).then((remote) => {
+      if (!active) return;
+      if (remote !== null) {
+        setMissions(remote);
+        return;
+      }
+      try {
+        const saved = window.localStorage.getItem(STORAGE_KEY);
+        if (saved) setMissions(JSON.parse(saved));
+      } catch {
+        /* ignore malformed storage */
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [phone]);
 
   const persist = (next: Mission[]) => {
     setMissions(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
+    if (phone) {
+      saveUserMissions(phone, next);
+    } else {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
     }
   };
 
@@ -144,7 +164,8 @@ export function MissionsProvider({ children }: { children: React.ReactNode }) {
           ),
         ),
     };
-  }, [missions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missions, phone]);
 
   return <MissionsContext.Provider value={value}>{children}</MissionsContext.Provider>;
 }

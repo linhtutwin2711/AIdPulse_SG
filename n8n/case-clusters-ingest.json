@@ -46,7 +46,7 @@
     {
       "parameters": {
         "method": "DELETE",
-        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/case_clusters?source_id=like.nea-dengue-%25",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/case_clusters?source_id=like.nea-dengue-%25",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -67,7 +67,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/case_clusters?on_conflict=source_id",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/case_clusters?on_conflict=source_id",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -101,7 +101,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://ypavrrtqngaljifkahcx.supabase.co/rest/v1/case_stats_snapshots?on_conflict=snapshot_date",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/case_stats_snapshots?on_conflict=snapshot_date",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
