@@ -1,0 +1,88 @@
+{
+  "name": "AidPulse — Certificate Analyze (Gemini Vision)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aidpulse-certificate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "aidpulse-certificate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Gemini generateContent request from the payload the Next.js route\n// sends: { fileName, mimeType, data (base64), hints }. We force STRUCTURED JSON\n// output (responseSchema) so the reply is always { certification, skills,\n// confidence } — exactly what app/api/certificate/analyze/route.ts expects.\nconst b = $json.body || $json;\nconst fileName = String(b.fileName || 'certificate');\nconst mimeType = String(b.mimeType || 'application/pdf');\nconst data = String(b.data || '');\nconst hints = String(b.hints || '').slice(0, 500);\n\n// The ONLY skills the app's matcher understands (lib/certificate-ai.ts +\n// opportunity roleType/skills). Gemini must pick from this exact vocabulary.\nconst SKILLS = [\n  'First Aid', 'Healthcare Support', 'Hospital Role', 'Counselling',\n  'Logistics', 'Logistics Support', 'Teaching', 'Food Handling',\n  'Translation', 'Crowd Management', 'General Volunteer'\n];\n\nif (!data) { throw new Error('No certificate data in payload'); }\n\nconst prompt = [\n  'You are analysing a volunteer\\u2019s certificate for AidPulse SG, a Singapore',\n  'health/disaster volunteering app. Read the attached document.',\n  'Filename: \"' + fileName + '\". User hints: \"' + hints + '\".',\n  '',\n  'Return JSON with exactly these fields:',\n  '- \"certification\": the official name of what this document certifies',\n  '  (e.g. \"Standard First Aid + CPR/AED\"). If unclear, use \"General certificate\".',\n  '- \"skills\": an array chosen ONLY from this exact list: ' + JSON.stringify(SKILLS) + '.',\n  '  Include every skill the certificate genuinely supports. If none clearly',\n  '  apply, return [\"General Volunteer\"].',\n  '- \"confidence\": a number from 0 to 1 for how sure you are.'\n].join('\\n');\n\nconst body = {\n  contents: [{\n    parts: [\n      { text: prompt },\n      { inline_data: { mime_type: mimeType, data: data } }\n    ]\n  }],\n  generationConfig: {\n    temperature: 0.1,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      properties: {\n        certification: { type: 'STRING' },\n        skills: { type: 'ARRAY', items: { type: 'STRING' } },\n        confidence: { type: 'NUMBER' }\n      },\n      required: ['certification', 'skills', 'confidence']\n    }\n  }\n};\n\nreturn [{ json: { geminiBody: JSON.stringify(body) } }];"
+      },
+      "id": "22222222-2222-2222-2222-222222222222",
+      "name": "Build Gemini request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=<GEMINI_API_KEY>",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.geminiBody }}",
+        "options": {}
+      },
+      "id": "33333333-3333-3333-3333-333333333333",
+      "name": "Gemini Vision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gemini returns { candidates: [{ content: { parts: [{ text: '<json>' }] }}]}.\n// Extract the JSON text, validate it, and normalise to the exact shape the\n// Next.js route returns to the browser: { certification, skills, confidence }.\nconst SKILLS = [\n  'First Aid', 'Healthcare Support', 'Hospital Role', 'Counselling',\n  'Logistics', 'Logistics Support', 'Teaching', 'Food Handling',\n  'Translation', 'Crowd Management', 'General Volunteer'\n];\nconst allow = new Map(SKILLS.map((s) => [s.toLowerCase(), s]));\n\nlet text = '';\ntry {\n  const parts = $json.candidates[0].content.parts || [];\n  text = parts.map((p) => p.text || '').join('');\n} catch (e) { text = ''; }\n\nlet out = { certification: 'General certificate', skills: ['General Volunteer'], confidence: 0.4 };\ntry {\n  const parsed = JSON.parse(text);\n  // Keep only recognised skills (case-insensitive), canonicalised to app casing.\n  const skills = Array.isArray(parsed.skills)\n    ? [...new Set(parsed.skills.map((s) => allow.get(String(s).toLowerCase())).filter(Boolean))]\n    : [];\n  out = {\n    certification: String(parsed.certification || 'General certificate').slice(0, 120),\n    skills: skills.length ? skills : ['General Volunteer'],\n    confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0.5))\n  };\n} catch (e) { /* keep the safe default */ }\n\nreturn [{ json: out }];"
+      },
+      "id": "44444444-4444-4444-4444-444444444444",
+      "name": "Parse + normalise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"certification\": $json.certification, \"skills\": $json.skills, \"confidence\": $json.confidence } }}",
+        "options": {}
+      },
+      "id": "55555555-5555-5555-5555-555555555555",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Build Gemini request", "type": "main", "index": 0 }]]
+    },
+    "Build Gemini request": {
+      "main": [[{ "node": "Gemini Vision", "type": "main", "index": 0 }]]
+    },
+    "Gemini Vision": {
+      "main": [[{ "node": "Parse + normalise", "type": "main", "index": 0 }]]
+    },
+    "Parse + normalise": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}
