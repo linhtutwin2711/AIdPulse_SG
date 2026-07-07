@@ -24,9 +24,9 @@ import { Button } from "@/components/ui/button";
 import {
   analyzeCertificate,
   matchOpportunities,
-  saveVolunteerSkills,
   type CertificateAnalysis,
 } from "@/lib/certificate-ai";
+import { phoneKey, saveVolunteerProfile } from "@/lib/volunteer";
 import { urgencyClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
@@ -68,29 +68,88 @@ export default function VolunteerRegisterPage() {
   const [emailStage, setEmailStage] = useState<"input" | "code" | "verified">("input");
   const [codeEntry, setCodeEntry] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  // Real path: signed token from /api/email-otp/send. Demo path: the code we
+  // generated in the browser and show on screen (only one is ever set).
+  const [otpToken, setOtpToken] = useState<string | null>(null);
+  const [demoCode, setDemoCode] = useState<string | null>(null);
   const emailVerified = emailStage === "verified";
 
-  const sendEmailCode = () => {
+  const sendEmailCode = async () => {
     setEmailError(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError("Enter a valid email address first.");
       return;
     }
-    // TODO(n8n): POST /api/email-otp/send { email } → n8n Gmail workflow,
-    // then keep the returned token for the verify call.
+    setEmailBusy(true);
+    try {
+      const res = await fetch("/api/email-otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        // Real email sent — keep the token, no on-screen code.
+        const { token } = await res.json();
+        setOtpToken(token);
+        setDemoCode(null);
+        setCodeEntry("");
+        setEmailStage("code");
+        return;
+      }
+      if (res.status === 429) {
+        const { error } = await res.json().catch(() => ({ error: "Too many requests." }));
+        setEmailError(error ?? "Too many requests. Please wait and try again.");
+        return;
+      }
+      // 503 (not configured) / 404 / 5xx → fall through to the demo path below.
+    } catch {
+      // Network error → demo path.
+    } finally {
+      setEmailBusy(false);
+    }
+    // Demo fallback: generate a code client-side and show it, so the flow works
+    // with no email backend configured.
+    setOtpToken(null);
+    setDemoCode(String(Math.floor(100000 + Math.random() * 900000)));
     setCodeEntry("");
     setEmailStage("code");
   };
 
-  const confirmEmailCode = () => {
+  const confirmEmailCode = async () => {
     setEmailError(null);
-    // TODO(n8n): POST /api/email-otp/verify { token, code, email } instead.
-    // Demo: any 6-digit code passes.
     if (!/^\d{6}$/.test(codeEntry)) {
       setEmailError("Enter the 6-digit code.");
       return;
     }
-    setEmailStage("verified");
+    // Real path — verify the code against the server using the signed token.
+    if (otpToken) {
+      setEmailBusy(true);
+      try {
+        const res = await fetch("/api/email-otp/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code: codeEntry, token: otpToken }),
+        });
+        const data = await res.json().catch(() => ({ ok: false }));
+        if (data.ok) {
+          setEmailStage("verified");
+        } else {
+          setEmailError(data.error ?? "Incorrect code. Please try again.");
+        }
+      } catch {
+        setEmailError("Couldn't verify the code. Please try again.");
+      } finally {
+        setEmailBusy(false);
+      }
+      return;
+    }
+    // Demo path — compare against the on-screen code.
+    if (demoCode && codeEntry === demoCode) {
+      setEmailStage("verified");
+    } else {
+      setEmailError("Incorrect code. Please try again.");
+    }
   };
 
   // The profile hydrates from localStorage after mount; fill fields the user
@@ -110,6 +169,8 @@ export default function VolunteerRegisterPage() {
   // onboarding at /permissions). Same geolocate → Nominatim reverse-geocode
   // pattern as the report page.
   const [address, setAddress] = useState("");
+  const [dob, setDob] = useState("");
+  const [gender, setGender] = useState("");
   const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState<string | null>(null);
 
@@ -187,7 +248,16 @@ export default function VolunteerRegisterPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              saveVolunteerSkills(allSkills);
+              // Persist the registration + skills to Supabase, keyed by phone
+              // (falls back to localStorage when phone/Supabase are unavailable).
+              saveVolunteerProfile(phoneKey("", phone), {
+                fullName: fullName.trim(),
+                dateOfBirth: dob,
+                gender,
+                address,
+                skills: allSkills,
+                certifications: analyses,
+              });
               setStage("review");
             }}
             className="mt-6 space-y-4"
@@ -231,7 +301,7 @@ export default function VolunteerRegisterPage() {
                   className="w-full flex-1 rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring disabled:opacity-60"
                 />
                 {!emailVerified && (
-                  <Button type="button" onClick={sendEmailCode} className="shrink-0">
+                  <Button type="button" onClick={sendEmailCode} disabled={emailBusy} className="shrink-0">
                     {emailStage === "code" ? "Resend" : "Verify"}
                   </Button>
                 )}
@@ -254,16 +324,26 @@ export default function VolunteerRegisterPage() {
                     <Button
                       type="button"
                       onClick={confirmEmailCode}
-                      disabled={codeEntry.length < 6}
+                      disabled={codeEntry.length < 6 || emailBusy}
                       className="shrink-0"
                     >
                       Confirm
                     </Button>
                   </div>
-                  <p className="mt-1 text-xs text-success">
-                    A verification code has been sent to{" "}
-                    <span className="font-medium">{email}</span>. Enter it below.
-                  </p>
+                  {demoCode ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Demo mode (no email service configured) — your code is{" "}
+                      <span className="font-mono font-semibold tracking-widest text-foreground">
+                        {demoCode}
+                      </span>
+                      .
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-success">
+                      A verification code has been sent to{" "}
+                      <span className="font-medium">{email}</span>. Enter it below.
+                    </p>
+                  )}
                 </div>
               )}
               {emailError && <p className="mt-1 text-xs text-danger">{emailError}</p>}
@@ -284,14 +364,18 @@ export default function VolunteerRegisterPage() {
               )}
             >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Date of Birth" type="date" />
+              <Field label="Date of Birth" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
               <label className="block">
                 <span className="text-sm font-medium">Gender</span>
-                <select className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none">
-                  <option>Select gender</option>
-                  <option>Female</option>
-                  <option>Male</option>
-                  <option>Prefer not to say</option>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none"
+                >
+                  <option value="">Select gender</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
                 </select>
               </label>
             </div>
