@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Award, Check, Clock, MapPin, Navigation, Plus, Search, ShieldCheck, Siren, Users } from "lucide-react";
+import { loadVolunteerSkills, matchOpportunities } from "@/lib/certificate-ai";
 import { urgencyClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import { useMissions } from "@/components/providers/missions-provider";
@@ -22,16 +23,28 @@ export default function OpportunitiesPage() {
   const { hasApplied, applyToOpportunity } = useMissions();
   const [tab, setTab] = useState<Tab>("all");
 
+  // Skills the certificate AI extracted at registration (localStorage; read
+  // after mount to stay hydration-safe). Empty until the user registers.
+  const [mySkills, setMySkills] = useState<string[]>([]);
+  useEffect(() => setMySkills(loadVolunteerSkills()), []);
+
+  // "Certificate Match" uses the AI skill profile when one exists; otherwise
+  // it falls back to the seeded `matched` flag.
+  const certMatched = useMemo(() => {
+    if (mySkills.length === 0) return new Set(all.filter((o) => o.matched).map((o) => o.id));
+    return new Set(matchOpportunities(mySkills, all, true).map((m) => m.opportunity.id));
+  }, [mySkills, all]);
+
   const list = all.filter((o) => {
     if (tab === "near") return o.distanceKm <= 2;
-    if (tab === "cert") return o.matched;
+    if (tab === "cert") return certMatched.has(o.id);
     if (tab === "urgent") return o.urgency === "urgent";
     return true;
   });
 
   const overview = [
     { label: "Nearby Now", value: all.length, icon: MapPin, c: "text-info" },
-    { label: "Certificate Match", value: all.filter((o) => o.matched).length, icon: Award, c: "text-success" },
+    { label: "Certificate Match", value: certMatched.size, icon: Award, c: "text-success" },
     { label: "Urgent Today", value: all.filter((o) => o.urgency === "urgent").length, icon: Siren, c: "text-danger" },
   ];
 

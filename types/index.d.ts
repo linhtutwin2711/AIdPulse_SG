@@ -253,6 +253,8 @@ export interface Friend {
   id: string;
   name: string;
   initials: string;
+  /** E.164-ish phone the account signed up with, e.g. "+6581234501". */
+  phone?: string;
   role?: Role;
   area?: string;
   online?: boolean;

@@ -1,19 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
+  Award,
   Bot,
   CheckCircle2,
+  FileCheck2,
   HeartHandshake,
+  Loader2,
+  LocateFixed,
   Lock,
+  MapPin,
   RefreshCw,
   Sparkles,
   Upload,
 } from "lucide-react";
+import { useOpportunities } from "@/components/providers/opportunities-provider";
+import { useProfile } from "@/components/providers/profile-provider";
 import { useRole } from "@/components/providers/role-provider";
 import { Button } from "@/components/ui/button";
+import {
+  analyzeCertificate,
+  matchOpportunities,
+  saveVolunteerSkills,
+  type CertificateAnalysis,
+} from "@/lib/certificate-ai";
+import { urgencyClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
 type Stage = "form" | "review" | "success";
@@ -35,6 +49,125 @@ export default function VolunteerRegisterPage() {
   const { setRole } = useRole();
   const [stage, setStage] = useState<Stage>("form");
 
+  // Everyone starts as a citizen, so we already know who they are from
+  // sign-up. Pre-fill what we have; the user can still edit anything.
+  // Email is intentionally NOT pre-filled — it gets its own verification
+  // flow later.
+  const { profile, fullName: profileFullName } = useProfile();
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+
+  // Email verification gate — the remaining fields stay locked until the
+  // email is verified. Behaves like a real OTP flow ("code sent" message),
+  // but in demo mode no email goes out and any 6-digit code is accepted.
+  // The real path (n8n Gmail workflow behind /api/email-otp/*) swaps in
+  // without UI changes — see the email-verification plan doc.
+  const [email, setEmail] = useState("");
+  const [emailStage, setEmailStage] = useState<"input" | "code" | "verified">("input");
+  const [codeEntry, setCodeEntry] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const emailVerified = emailStage === "verified";
+
+  const sendEmailCode = () => {
+    setEmailError(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("Enter a valid email address first.");
+      return;
+    }
+    // TODO(n8n): POST /api/email-otp/send { email } → n8n Gmail workflow,
+    // then keep the returned token for the verify call.
+    setCodeEntry("");
+    setEmailStage("code");
+  };
+
+  const confirmEmailCode = () => {
+    setEmailError(null);
+    // TODO(n8n): POST /api/email-otp/verify { token, code, email } instead.
+    // Demo: any 6-digit code passes.
+    if (!/^\d{6}$/.test(codeEntry)) {
+      setEmailError("Enter the 6-digit code.");
+      return;
+    }
+    setEmailStage("verified");
+  };
+
+  // The profile hydrates from localStorage after mount; fill fields the user
+  // hasn't typed in yet once it arrives.
+  useEffect(() => {
+    if (!nameTouched && profileFullName && profile.firstName) setFullName(profileFullName);
+    if (!phoneTouched && profile.phone) setPhone(`${profile.countryCode} ${profile.phone}`);
+  }, [profile, profileFullName, nameTouched, phoneTouched]);
+
+  // Typed skills + skills the certificate AI extracts, kept in sync.
+  const [skillsText, setSkillsText] = useState("");
+  const [analyses, setAnalyses] = useState<CertificateAnalysis[]>([]);
+  const [analyzing, setAnalyzing] = useState(0); // files currently being analysed
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  // Address + "use my current location" (permission was already requested in
+  // onboarding at /permissions). Same geolocate → Nominatim reverse-geocode
+  // pattern as the report page.
+  const [address, setAddress] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState<string | null>(null);
+
+  const useMyLocation = () => {
+    if (!("geolocation" in navigator)) {
+      setLocError("Geolocation is not supported on this device.");
+      return;
+    }
+    setLocating(true);
+    setLocError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        let label = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+            { headers: { Accept: "application/json" } }
+          );
+          const data = await res.json();
+          if (data?.display_name) label = data.display_name as string;
+        } catch {
+          /* offline / blocked — keep the lat,lng label */
+        }
+        setAddress(label);
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        setLocError("Location permission denied — please type your address instead.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const allSkills = [
+    ...new Set([
+      ...skillsText.split(",").map((s) => s.trim()).filter(Boolean),
+      ...analyses.flatMap((a) => a.skills),
+    ]),
+  ];
+
+  const onCertificates = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setAnalyzing((n) => n + files.length);
+    for (const file of Array.from(files)) {
+      const result = await analyzeCertificate(file, skillsText);
+      setAnalyses((prev) => [...prev.filter((a) => a.file !== result.file), result]);
+      // Merge extracted skills into the visible skills field.
+      setSkillsText((prev) => {
+        const existing = prev.split(",").map((s) => s.trim()).filter(Boolean);
+        const merged = [...new Set([...existing, ...result.skills])];
+        return merged.join(", ");
+      });
+      setAnalyzing((n) => n - 1);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl">
       {stage === "form" && (
@@ -52,14 +185,105 @@ export default function VolunteerRegisterPage() {
           </div>
 
           <form
-            onSubmit={(e) => { e.preventDefault(); setStage("review"); }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveVolunteerSkills(allSkills);
+              setStage("review");
+            }}
             className="mt-6 space-y-4"
           >
+            {/* Your details from sign-up — shown first, editable. */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Full Name" placeholder="Enter your full name" required />
-              <Field label="NRIC / FIN" placeholder="e.g. S1234567A" required />
-              <Field label="Email Address" type="email" placeholder="Enter your email address" required />
-              <Field label="Phone Number" placeholder="+65 your phone number" required />
+              <Field
+                label="Full Name"
+                placeholder="Enter your full name"
+                required
+                value={fullName}
+                onChange={(e) => { setNameTouched(true); setFullName(e.target.value); }}
+              />
+              <Field
+                label="Phone Number"
+                placeholder="+65 your phone number"
+                required
+                value={phone}
+                onChange={(e) => { setPhoneTouched(true); setPhone(e.target.value); }}
+              />
+            </div>
+
+            {/* Step 1 — verify your email. The rest of the form unlocks after. */}
+            <div className="rounded-xl border border-border bg-secondary/20 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Email Address</span>
+                {emailVerified && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-success">
+                    <CheckCircle2 className="size-3.5" /> Verified
+                  </span>
+                )}
+              </div>
+              <div className="mt-1.5 flex gap-2">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setEmailStage("input"); setEmailError(null); }}
+                  placeholder="Enter your email address"
+                  required
+                  disabled={emailVerified}
+                  className="w-full flex-1 rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring disabled:opacity-60"
+                />
+                {!emailVerified && (
+                  <Button type="button" onClick={sendEmailCode} className="shrink-0">
+                    {emailStage === "code" ? "Resend" : "Verify"}
+                  </Button>
+                )}
+              </div>
+              {emailStage === "input" && !emailError && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  We&apos;ll send a verification code to this email.
+                </p>
+              )}
+              {emailStage === "code" && (
+                <div className="mt-3">
+                  <div className="flex gap-2">
+                    <input
+                      value={codeEntry}
+                      onChange={(e) => setCodeEntry(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="Enter the 6-digit code"
+                      inputMode="numeric"
+                      className="w-full flex-1 rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm tracking-widest outline-none placeholder:tracking-normal placeholder:text-muted-foreground focus-visible:border-ring"
+                    />
+                    <Button
+                      type="button"
+                      onClick={confirmEmailCode}
+                      disabled={codeEntry.length < 6}
+                      className="shrink-0"
+                    >
+                      Confirm
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-success">
+                    A verification code has been sent to{" "}
+                    <span className="font-medium">{email}</span>. Enter it below.
+                  </p>
+                </div>
+              )}
+              {emailError && <p className="mt-1 text-xs text-danger">{emailError}</p>}
+            </div>
+
+            {!emailVerified && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Lock className="size-3" /> Verify your email to unlock the rest of the form.
+              </p>
+            )}
+
+            {/* Step 2 — the rest, locked behind email verification. */}
+            <div
+              aria-disabled={!emailVerified}
+              className={cn(
+                "space-y-4 transition-all",
+                !emailVerified && "pointer-events-none select-none opacity-50 blur-[2px]"
+              )}
+            >
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Date of Birth" type="date" />
               <label className="block">
                 <span className="text-sm font-medium">Gender</span>
@@ -72,11 +296,37 @@ export default function VolunteerRegisterPage() {
               </label>
             </div>
 
-            <Field label="Address" placeholder="Enter your residential address" />
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Address</span>
+                <button
+                  type="button"
+                  onClick={useMyLocation}
+                  disabled={locating}
+                  className="flex items-center gap-1 text-xs font-medium text-info transition-opacity hover:opacity-80 disabled:opacity-50"
+                >
+                  {locating ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <LocateFixed className="size-3.5" />
+                  )}
+                  {locating ? "Detecting…" : "Use my current location"}
+                </button>
+              </div>
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Enter your residential address"
+                className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring"
+              />
+              {locError && <p className="mt-1 text-xs text-danger">{locError}</p>}
+            </div>
 
             <label className="block">
               <span className="text-sm font-medium">Skills &amp; Expertise (Optional)</span>
               <input
+                value={skillsText}
+                onChange={(e) => setSkillsText(e.target.value)}
                 placeholder="e.g. First Aid, Healthcare, Logistics, Teaching"
                 className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground"
               />
@@ -84,11 +334,66 @@ export default function VolunteerRegisterPage() {
 
             <div>
               <span className="text-sm font-medium">Upload Certificates (Optional)</span>
-              <div className="surface-muted mt-1.5 grid h-24 place-items-center text-sm text-muted-foreground">
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                onChange={(e) => onCertificates(e.target.files)}
+                className="hidden"
+                aria-label="Upload certificates"
+              />
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                className="surface-muted mt-1.5 grid h-24 w-full place-items-center text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
                 <span className="flex flex-col items-center gap-1">
-                  <Upload className="size-5" /> Upload certificate(s)
+                  {analyzing > 0 ? (
+                    <>
+                      <Loader2 className="size-5 animate-spin text-info" />
+                      AI is reading your certificate…
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="size-5" /> Upload certificate(s) — our AI reads them for you
+                    </>
+                  )}
                 </span>
-              </div>
+              </button>
+
+              {analyses.length > 0 && (
+                <ul className="mt-2 space-y-2">
+                  {analyses.map((a) => (
+                    <li
+                      key={a.file}
+                      className="rounded-xl border border-success/25 bg-success/5 p-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FileCheck2 className="size-4 shrink-0 text-success" />
+                        <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                          {a.certification}
+                        </p>
+                        <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+                          {a.source === "gemini" ? "Gemini AI" : "On-device AI"} ·{" "}
+                          {Math.round(a.confidence * 100)}%
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{a.file}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {a.skills.map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-medium text-success"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <Button type="submit" size="lg" className="h-12 w-full text-base">
@@ -97,6 +402,7 @@ export default function VolunteerRegisterPage() {
             <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
               <Lock className="size-3" /> Your information is secure and only used for verification.
             </p>
+            </div>
           </form>
         </div>
       )}
@@ -111,31 +417,76 @@ export default function VolunteerRegisterPage() {
             Welcome to the AidPulse SG volunteer network.
           </p>
 
-          <div className="mt-6 space-y-2 text-left">
-            {[
-              { t: "Access volunteer features", d: "Explore available opportunities and start contributing." },
-              { t: "Stay updated", d: "We'll notify you about opportunities that match your skills." },
-              { t: "Make an impact", d: "Your time and skills can help build a safer community." },
-            ].map((x) => (
-              <div key={x.t} className="surface-muted flex items-center gap-3 p-3 text-left">
-                <CheckCircle2 className="size-5 shrink-0 text-success" />
-                <div>
-                  <p className="text-sm font-medium">{x.t}</p>
-                  <p className="text-xs text-muted-foreground">{x.d}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <MatchedOpportunities skills={allSkills} hasCertificate={analyses.length > 0} />
 
           <Button
             size="lg"
-            onClick={() => { setRole("volunteer"); router.push("/volunteer/dashboard"); }}
+            onClick={() => { setRole("volunteer"); router.push("/volunteer/opportunities"); }}
             className="mt-6 h-12 w-full bg-success text-success-foreground text-base hover:bg-success/90"
           >
-            Go to Volunteer Dashboard <ArrowRight className="size-5" />
+            See All Matched Opportunities <ArrowRight className="size-5" />
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * "Opportunities picked for you" — ranked by the certificate AI's extracted
+ * skills, each with the reasons it matched.
+ */
+function MatchedOpportunities({
+  skills,
+  hasCertificate,
+}: {
+  skills: string[];
+  hasCertificate: boolean;
+}) {
+  const { opportunities } = useOpportunities();
+  const matches = matchOpportunities(skills, opportunities, hasCertificate).slice(0, 3);
+
+  if (matches.length === 0) {
+    return (
+      <div className="surface-muted mt-6 p-4 text-left">
+        <p className="text-sm font-medium">No skill matches yet</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Browse all opportunities — adding skills or certificates improves your matches.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 text-left">
+      <div className="flex items-center gap-2">
+        <Sparkles className="size-4 text-gold" />
+        <h3 className="text-sm font-semibold">
+          AI-matched opportunities for you ({matches.length})
+        </h3>
+      </div>
+      <ul className="mt-2 space-y-2">
+        {matches.map(({ opportunity: o, reasons }) => (
+          <li key={o.id} className="surface-muted p-3">
+            <div className="flex items-center gap-2">
+              <p className="min-w-0 flex-1 truncate text-sm font-medium">{o.title}</p>
+              <span className={cn("pill shrink-0 text-[10px]", urgencyClass[o.urgency])}>
+                {o.urgency}
+              </span>
+            </div>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="size-3" /> {o.org} · {o.location} · {o.distanceKm} km
+            </p>
+            <ul className="mt-1.5 space-y-0.5">
+              {reasons.slice(0, 2).map((r) => (
+                <li key={r} className="flex items-center gap-1.5 text-xs text-success">
+                  <Award className="size-3 shrink-0" /> {r}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

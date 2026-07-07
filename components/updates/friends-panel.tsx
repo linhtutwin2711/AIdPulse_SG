@@ -1,15 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  Check,
+  Copy,
   MessageSquare,
   Search,
+  Send,
   UserPlus,
   UserRoundCheck,
   UserRoundX,
   Users,
 } from "lucide-react";
 import { useFriends } from "@/components/providers/friends-provider";
+import {
+  FLYER_PATH,
+  buildInviteMessage,
+  findPersonByPhone,
+  looksLikePhone,
+  whatsappInviteUrl,
+} from "@/lib/data";
 import { roleLabel } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import type { Friend } from "@/types";
@@ -18,11 +28,14 @@ type Tab = "friends" | "discover";
 
 /** Friends hub: your connections + a directory to add new ones. */
 export function FriendsPanel({ onMessage }: { onMessage: (convId: string) => void }) {
-  const { friends, suggestions, addFriend, removeFriend } = useFriends();
+  const { friends, suggestions, isFriend, addFriend, removeFriend } = useFriends();
   const [tab, setTab] = useState<Tab>("friends");
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
+  // Digits → WhatsApp-style exact phone lookup; anything else → name/area filter.
+  const phoneSearch = looksLikePhone(query);
+  const phoneMatch = phoneSearch ? findPersonByPhone(query) : null;
   const filteredSuggestions = q
     ? suggestions.filter((p) => `${p.name} ${p.area ?? ""}`.toLowerCase().includes(q))
     : suggestions;
@@ -90,11 +103,48 @@ export function FriendsPanel({ onMessage }: { onMessage: (convId: string) => voi
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search people by name or area…"
+                placeholder="Search by name, area, or phone number…"
                 className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
             </div>
-            {filteredSuggestions.length === 0 ? (
+            {phoneSearch ? (
+              phoneMatch ? (
+                <ul className="space-y-2">
+                  <PersonRow person={phoneMatch} showPhone>
+                    {isFriend(phoneMatch.id) ? (
+                      <IconButton
+                        label={`Message ${phoneMatch.name}`}
+                        onClick={() => onMessage(phoneMatch.id)}
+                        className="hover:bg-info/15 hover:text-info"
+                      >
+                        <MessageSquare className="size-4" />
+                      </IconButton>
+                    ) : (
+                      <button
+                        onClick={() => addFriend(phoneMatch.id)}
+                        className="flex items-center gap-1.5 rounded-full bg-gold px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+                      >
+                        <UserPlus className="size-3.5" /> Add
+                      </button>
+                    )}
+                  </PersonRow>
+                  <p className="px-1 pt-1 text-xs text-muted-foreground">
+                    {isFriend(phoneMatch.id)
+                      ? "You're already friends — say hi!"
+                      : "This number is on AidPulse."}
+                  </p>
+                </ul>
+              ) : (
+                <>
+                  <Empty
+                    icon={UserRoundX}
+                    title="Number not on AidPulse"
+                    hint="No account is registered with this phone number. Check the digits, or invite them to join."
+                  />
+                  <InviteCard phone={query} />
+                </>
+              )
+            ) : filteredSuggestions.length === 0 ? (
               <Empty
                 icon={UserRoundCheck}
                 title={q ? "No matches" : "You're all caught up"}
@@ -121,8 +171,99 @@ export function FriendsPanel({ onMessage }: { onMessage: (convId: string) => voi
   );
 }
 
-function PersonRow({ person, children }: { person: Friend; children: React.ReactNode }) {
-  const meta = [person.role ? roleLabel[person.role] : null, person.area]
+/**
+ * Invite an unregistered number to AidPulse: flyer preview + ready-made pitch,
+ * sendable via WhatsApp or copied to the clipboard.
+ */
+function InviteCard({ phone }: { phone: string }) {
+  const [copied, setCopied] = useState(false);
+  const [flyerOk, setFlyerOk] = useState(true);
+  // window is client-only; read origin after mount to stay hydration-safe.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+
+  const message = buildInviteMessage(origin || "https://aidpulse.sg");
+
+  const copyInvite = async () => {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(message);
+      ok = true;
+    } catch {
+      // Fallback for contexts where the Clipboard API is unavailable.
+      const ta = document.createElement("textarea");
+      ta.value = message;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        ok = document.execCommand("copy");
+      } finally {
+        ta.remove();
+      }
+    }
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="mx-1 rounded-2xl border border-gold/25 bg-gold/5 p-4">
+      <div className="flex items-start gap-3">
+        {flyerOk && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={FLYER_PATH}
+            alt="AidPulse SG flyer"
+            onError={() => setFlyerOk(false)}
+            className="w-16 shrink-0 rounded-lg border border-border object-cover"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Invite {phone.trim()} to AidPulse</p>
+          <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
+            {message}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a
+          href={whatsappInviteUrl(phone, origin || "https://aidpulse.sg")}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 rounded-full bg-success px-3.5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+        >
+          <Send className="size-3.5" /> Invite via WhatsApp
+        </a>
+        <button
+          onClick={copyInvite}
+          aria-label="Copy invite message"
+          className="flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+          {copied ? "Copied!" : "Copy invite"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PersonRow({
+  person,
+  showPhone,
+  children,
+}: {
+  person: Friend;
+  showPhone?: boolean;
+  children: React.ReactNode;
+}) {
+  const meta = [
+    person.role ? roleLabel[person.role] : null,
+    person.area,
+    showPhone ? person.phone : null,
+  ]
     .filter(Boolean)
     .join(" · ");
   return (

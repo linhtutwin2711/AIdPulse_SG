@@ -130,6 +130,50 @@ export const getConversation = (id: string) =>
 // Supabase equivalent: supabase.from("profiles").select("*")
 export const getPeopleDirectory = (): Friend[] => peopleDirectory;
 
+// WhatsApp-style lookup: is this phone number on AidPulse? Exact match only —
+// we never expose partial matches, so you can't fish for numbers.
+// Accepts local ("8123 4501") or international ("+65 8123 4501") input; a
+// local number is assumed to be Singapore (+65).
+// Supabase equivalent: supabase.from("profiles").select("*").eq("phone", e164).single()
+export function findPersonByPhone(input: string): Friend | null {
+  const digits = input.replace(/\D/g, "");
+  if (digits.length < 7) return null;
+  const candidates = [digits, digits.startsWith("65") ? digits : `65${digits}`];
+  return (
+    peopleDirectory.find((p) => {
+      const d = p.phone?.replace(/\D/g, "");
+      return d ? candidates.includes(d) : false;
+    }) ?? null
+  );
+}
+
+// A query is treated as a phone search when it's mostly digits (like "+65 8123 4501").
+export const looksLikePhone = (q: string) => /^[+\d][\d\s-]{5,}$/.test(q.trim());
+
+// ---------------------------------------------------------------------------
+// Invites — when a searched number isn't on AidPulse yet.
+
+/** Public URL of the promo flyer bundled with the app (drop the image in public/images/). */
+export const FLYER_PATH = "/images/flyer.png";
+
+/** The short pitch that rides along with every invite link. */
+export const INVITE_PITCH =
+  "I'm using AidPulse SG — one app for real-time health alerts, live dengue & COVID case maps, " +
+  "hospital bed availability and emergency reporting across Singapore. Be informed. Be prepared. " +
+  "It's free and takes under a minute to join:";
+
+/** Full invite message: pitch + sign-up link + flyer, ready for WhatsApp/SMS/clipboard. */
+export function buildInviteMessage(origin: string): string {
+  return `👋 Hey! ${INVITE_PITCH}\n\n${origin}/\n\nHere's a quick look at the app: ${origin}${FLYER_PATH}`;
+}
+
+/** wa.me deep link that opens a WhatsApp chat with `phone`, invite text pre-filled. */
+export function whatsappInviteUrl(phone: string, origin: string): string {
+  const digits = phone.replace(/\D/g, "");
+  const intl = digits.length === 8 ? `65${digits}` : digits; // bare local number → Singapore
+  return `https://wa.me/${intl}?text=${encodeURIComponent(buildInviteMessage(origin))}`;
+}
+
 // Hospital bed availability summary. Occupancy bands: high > 80, medium 50–80, low < 50.
 export const bedSummary = (h: Hospital) => {
   const total = h.totalBeds;
