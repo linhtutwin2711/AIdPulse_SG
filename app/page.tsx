@@ -197,6 +197,9 @@ export default function LandingPage() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   Choose your country — works internationally.
                 </p>
+                <p className="mt-2 text-xs text-info">
+                  Demo mode: no SMS is sent. Use code <span className="font-semibold">123456</span> on the next screen.
+                </p>
               </div>
 
               {error && <p className="text-sm text-danger">{error}</p>}
@@ -222,6 +225,9 @@ export default function LandingPage() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   Enter the 6-digit code we sent to{" "}
                   <span className="font-medium text-foreground">{fullPhone || "—"}</span>
+                </p>
+                <p className="mt-2 text-sm text-info">
+                  Demo code: <span className="font-semibold">123456</span>. No real SMS is sent.
                 </p>
               </div>
 
@@ -253,7 +259,9 @@ export default function LandingPage() {
                 )}
               </div>
 
-              <p className="text-xs text-muted-foreground">A 6-digit code was sent by SMS. It expires in a few minutes.</p>
+              <p className="text-xs text-muted-foreground">
+                Demo mode: no SMS is sent. Use <span className="font-semibold">123456</span> to continue.
+              </p>
             </div>
           )}
 

@@ -44,25 +44,12 @@ test("requestOtp rejects a number with fewer than 7 digits (no network)", async 
   }
 });
 
-test("requestOtp forwards a valid number to /api/otp/send in E.164", async () => {
+test("requestOtp accepts a valid number without calling the network", async () => {
   const calls = stubFetch(200, { ok: true });
   try {
     const res = await requestOtp("+65 9123 4567");
     assert.equal(res.ok, true);
-    assert.equal(calls.length, 1);
-    assert.match(calls[0].url, /\/api\/otp\/send$/);
-    assert.deepEqual(calls[0].body, { phone: "+6591234567" });
-  } finally {
-    globalThis.fetch = realFetch;
-  }
-});
-
-test("requestOtp surfaces the server error message on failure", async () => {
-  stubFetch(503, { error: "SMS verification is not configured." });
-  try {
-    const res = await requestOtp("+65 9123 4567");
-    assert.equal(res.ok, false);
-    assert.equal(res.error, "SMS verification is not configured.");
+    assert.equal(calls.length, 0, "should not call a network API in demo mode");
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -80,24 +67,24 @@ test("verifyOtp rejects a code that is not exactly 6 digits (no network)", async
   }
 });
 
-test("verifyOtp returns ok when the API approves the code", async () => {
+test("verifyOtp returns ok for the demo code", async () => {
   const calls = stubFetch(200, { ok: true });
   try {
     const res = await verifyOtp("+65 9123 4567", "123456");
     assert.equal(res.ok, true);
-    assert.match(calls[0].url, /\/api\/otp\/verify$/);
-    assert.deepEqual(calls[0].body, { phone: "+6591234567", code: "123456" });
+    assert.equal(calls.length, 0, "should not call a network API in demo mode");
   } finally {
     globalThis.fetch = realFetch;
   }
 });
 
-test("verifyOtp returns the server error when the code is wrong", async () => {
-  stubFetch(401, { error: "Incorrect or expired code." });
+test("verifyOtp rejects the wrong demo code", async () => {
+  const calls = stubFetch(200, { ok: true });
   try {
     const res = await verifyOtp("+65 9123 4567", "000000");
     assert.equal(res.ok, false);
-    assert.equal(res.error, "Incorrect or expired code.");
+    assert.equal(res.error, "Invalid code. For demo, enter 123456.");
+    assert.equal(calls.length, 0, "should not call a network API in demo mode");
   } finally {
     globalThis.fetch = realFetch;
   }
