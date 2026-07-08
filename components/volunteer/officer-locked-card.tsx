@@ -60,8 +60,9 @@ export function OfficerLockedCard() {
           <DialogDescription>
             Emergency Officer is a restricted role for authorized personnel of
             response agencies (MOH, SCDF, NEA, hospital emergency departments).
-            Unlocking it requires identity verification: your Officer ID,
-            organisation, access passphrase, and a one-time code.
+            Unlocking it requires verification: upload your official
+            appointment/authorization letter for AI review, then confirm a
+            one-time code.
           </DialogDescription>
         </DialogHeader>
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

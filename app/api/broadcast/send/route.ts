@@ -12,6 +12,10 @@ const PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 const SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:alerts@aidpulse.sg";
 
+// KNOWN LIMITATION (documented in the final report): the app deliberately has
+// no server-side auth — roles live client-side for the demo — so this route
+// cannot verify the caller is a real officer. The upgrade path is Supabase
+// Auth (phone sign-in) + a role claim check here before sending.
 export async function POST(req: Request) {
   if (!PUBLIC_KEY || !PRIVATE_KEY) {
     return NextResponse.json(
@@ -21,17 +25,17 @@ export async function POST(req: Request) {
   }
   webpush.setVapidDetails(SUBJECT, PUBLIC_KEY, PRIVATE_KEY);
 
-  let body: { area?: string; severity?: string; message?: string };
+  let body: { area?: string; severity?: string; message?: string } | null;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
-  const message = body.message?.trim();
+  const message = body?.message?.trim();
   if (!message) return NextResponse.json({ error: "Empty message." }, { status: 400 });
 
-  const severity = (body.severity ?? "high").toUpperCase();
-  const area = body.area ?? "Singapore";
+  const severity = (body?.severity ?? "high").toUpperCase();
+  const area = body?.area ?? "Singapore";
   const payload = JSON.stringify({
     title: `🚨 ${severity} ALERT · ${area}`,
     body: message.slice(0, 300),

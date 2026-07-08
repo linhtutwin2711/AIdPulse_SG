@@ -36,10 +36,23 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Missing document file." }, { status: 400 });
   }
+  // Server-side upload limits — never trust the client-side accept attribute.
+  const ALLOWED_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
+  const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return NextResponse.json({ error: "Upload a PDF or image document." }, { status: 400 });
+  }
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: "Document too large (max 10 MB)." }, { status: 400 });
+  }
 
   // Metadata only — never log document contents (it's a confidential letter).
   console.log("[api/authorization] analysing:", { name: file.name, size: file.size });
 
+  // Gemini vision can be slow, but never hang the client past 30s — a timeout
+  // returns 502 and the browser falls back to on-device analysis.
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 30_000);
   try {
     const buf = Buffer.from(await file.arrayBuffer());
     const res = await fetch(WEBHOOK_URL, {
@@ -52,6 +65,7 @@ export async function POST(req: Request) {
         hints: String(form.get("hints") ?? ""),
       }),
       cache: "no-store",
+      signal: abort.signal,
     });
 
     if (!res.ok) {
@@ -73,5 +87,7 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("authorization analyze error", err);
     return NextResponse.json({ error: "Network error reaching the AI workflow." }, { status: 502 });
+  } finally {
+    clearTimeout(timer);
   }
 }

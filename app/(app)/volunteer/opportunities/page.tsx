@@ -107,6 +107,7 @@ export default function OpportunitiesPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by hospital, role, or location…"
+              aria-label="Search opportunities by hospital, role, or location"
               className="w-full bg-transparent outline-none placeholder:text-muted-foreground"
             />
           </label>
@@ -186,11 +187,6 @@ export default function OpportunitiesPage() {
             </div>
             );
           })}
-          {list.length === 0 && (
-            <div className="surface p-10 text-center text-sm text-muted-foreground">
-              No opportunities in this category right now.
-            </div>
-          )}
         </div>
       </section>
       </div>

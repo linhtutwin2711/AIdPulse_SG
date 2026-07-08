@@ -44,9 +44,9 @@ export async function removeSubscription(endpoint: string): Promise<void> {
 export async function allSubscriptions(): Promise<StoredSubscription[]> {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from("push_subscriptions").select("endpoint, keys");
-    if (!error && data && data.length > 0) {
-      return data as StoredSubscription[];
-    }
+    // A successful query is authoritative — even when empty. Only fall back to
+    // memory when the table is missing/erroring (pre-migration dev).
+    if (!error && data) return data as StoredSubscription[];
   }
   return [...memory.values()];
 }

@@ -74,9 +74,13 @@ export default function MapPage() {
   const [selectedFacility, setSelectedFacility] = useState<TempFacility | null>(null);
 
   // Temporary emergency facilities (campus quarantine/treatment sites) — same
-  // layer for every role.
+  // layer for every role. Like hospitals, a selected facility stays visible
+  // even when its layer is toggled off.
   const facilities = getTempFacilities();
-  const shownFacilities = showTemp ? facilities : [];
+  let shownFacilities = showTemp ? facilities : [];
+  if (selectedFacility && !shownFacilities.some((f) => f.id === selectedFacility.id)) {
+    shownFacilities = [...shownFacilities, selectedFacility];
+  }
 
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [hospitalsOpen, setHospitalsOpen] = useState(true);
@@ -170,6 +174,7 @@ export default function MapPage() {
   const pickArea = (lat: number, lng: number) => {
     setSelected(null);
     setSelectedCase(null);
+    setSelectedFacility(null);
     fly(lat, lng);
     setQuery("");
   };

@@ -81,12 +81,18 @@ export default function PermissionsPage() {
   // window focus too, so fixing the permission in browser settings and coming
   // back to this tab updates the status without a reload.
   useEffect(() => {
+    // Subscribe at most once per mount — focus events only refresh the status
+    // text, they don't re-register the service worker / re-POST the sub.
+    let subscribed = false;
     const sync = () => {
       if ("Notification" in window) {
         setNotif(Notification.permission === "default" ? "prompt" : (Notification.permission as Perm));
         // Permission already granted (e.g. before push existed, or re-enabled
         // via site settings) → make sure this device is actually subscribed.
-        if (Notification.permission === "granted") void enableBroadcastPush();
+        if (Notification.permission === "granted" && !subscribed) {
+          subscribed = true;
+          void enableBroadcastPush();
+        }
       }
     };
     sync();

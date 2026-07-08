@@ -174,15 +174,17 @@ export default function VolunteerRegisterPage() {
   const [gender, setGender] = useState("");
 
   // Volunteers must be adults: age in full years as of today, or null if unset.
+  // Parsed date-only (new Date("YYYY-MM-DD") is UTC midnight, which can shift a
+  // calendar day across timezones and let a 17-year-old pass early).
   const ageFromDob = (iso: string): number | null => {
-    if (!iso) return null;
-    const birth = new Date(iso);
-    if (Number.isNaN(birth.getTime())) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    if (!m) return null;
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
     const now = new Date();
-    let age = now.getFullYear() - birth.getFullYear();
+    let age = now.getFullYear() - y;
     const hadBirthday =
-      now.getMonth() > birth.getMonth() ||
-      (now.getMonth() === birth.getMonth() && now.getDate() >= birth.getDate());
+      now.getMonth() + 1 > mo || (now.getMonth() + 1 === mo && now.getDate() >= d);
     if (!hadBirthday) age -= 1;
     return age;
   };

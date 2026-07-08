@@ -20,27 +20,39 @@ export default function BroadcastPage() {
   const [area, setArea] = useState("Tanjong Pagar");
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState(false);
   const [delivered, setDelivered] = useState<number | null>(null);
 
   const sendBroadcast = async () => {
-    setSent(true);
+    setSending(true);
+    setSent(false);
+    setSendError(false);
     setDelivered(null);
-    const text = message;
-    setMessage("");
-    // Push to every subscribed device (all roles). Fails soft: the in-app
-    // confirmation still shows even when push isn't configured/subscribed.
+    // The draft is only cleared once the broadcast is accepted — a failed
+    // send keeps the message so the officer can retry, not retype.
     try {
       const res = await fetch("/api/broadcast/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ area, severity, message: text }),
+        body: JSON.stringify({ area, severity, message }),
       });
       if (res.ok) {
         const data = await res.json();
         setDelivered(data.delivered ?? 0);
+        setSent(true);
+        setMessage("");
+      } else if (res.status === 503) {
+        // Push not configured (demo mode) — the in-app broadcast still counts.
+        setSent(true);
+        setMessage("");
+      } else {
+        setSendError(true);
       }
     } catch {
-      /* offline / unconfigured — in-app confirmation only */
+      setSendError(true); // offline — draft stays for retry
+    } finally {
+      setSending(false);
     }
   };
 
@@ -113,9 +125,15 @@ export default function BroadcastPage() {
                 ` Push notifications delivered to ${delivered} subscribed device${delivered === 1 ? "" : "s"}.`}
             </p>
           )}
+          {sendError && (
+            <p className="rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">
+              Broadcast could not be delivered — check your connection and try
+              again. Your message has been kept.
+            </p>
+          )}
 
-          <Button type="submit" size="lg" disabled={!message.trim()} className="h-12 w-full text-base">
-            <Send className="size-5" /> Send Broadcast
+          <Button type="submit" size="lg" disabled={!message.trim() || sending} className="h-12 w-full text-base">
+            <Send className="size-5" /> {sending ? "Sending…" : "Send Broadcast"}
           </Button>
         </form>
       </section>

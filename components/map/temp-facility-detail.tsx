@@ -21,7 +21,8 @@ export function TempFacilityDetail({
   onClose: () => void;
 }) {
   const kind = KIND[facility.kind];
-  const pct = Math.round((facility.occupied / facility.capacity) * 100);
+  const pct =
+    facility.capacity > 0 ? Math.round((facility.occupied / facility.capacity) * 100) : 0;
 
   return (
     <div className="surface pointer-events-auto flex max-h-full flex-col overflow-hidden p-0">

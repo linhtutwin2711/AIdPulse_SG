@@ -43,16 +43,27 @@ export default function OfficerAccessPage() {
   const [scanning, setScanning] = useState(false);
   const docInput = useRef<HTMLInputElement>(null);
 
+  // Manual-hospital <details>: state-owned so the user's expand/collapse isn't
+  // clobbered by re-renders; auto-opens when a scan can't identify the hospital.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  useEffect(() => {
+    if (analysis?.authorized && !analysis.hospitalId) setPickerOpen(true);
+  }, [analysis]);
+
   const onDocument = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
     setScanning(true);
     setAnalysis(null);
-    const result = await analyzeAuthorization(file, fullName);
-    setAnalysis(result);
-    // The letter names the hospital — pre-select it for the appointment.
-    if (result.hospitalId) setHospitalId(result.hospitalId);
-    setScanning(false);
+    try {
+      const result = await analyzeAuthorization(file, fullName);
+      setAnalysis(result);
+      // The letter names the hospital — pre-select it for the appointment.
+      if (result.hospitalId) setHospitalId(result.hospitalId);
+    } finally {
+      // Never leave the UI stuck on "scanning", whatever goes wrong.
+      setScanning(false);
+    }
   };
 
   const q = hospitalQuery.trim().toLowerCase();
@@ -169,7 +180,11 @@ export default function OfficerAccessPage() {
             </div>
 
             {/* The letter names your hospital; correct it here only if needed. */}
-            <details className="block" open={Boolean(analysis?.authorized && !analysis.hospitalId)}>
+            <details
+              className="block"
+              open={pickerOpen}
+              onToggle={(e) => setPickerOpen((e.target as HTMLDetailsElement).open)}
+            >
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
                 {analysis?.hospitalId
                   ? "Wrong hospital detected? Choose manually"
