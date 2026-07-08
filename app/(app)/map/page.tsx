@@ -2,17 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, ChevronDown, Layers, Minus, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { Building2, ChevronDown, Layers, Minus, Plus, Search, SlidersHorizontal, Tent } from "lucide-react";
 import { AidMap } from "@/components/map/aid-map";
 import { HospitalDetail } from "@/components/map/hospital-detail";
 import { CaseDetail } from "@/components/map/case-detail";
+import { TempFacilityDetail } from "@/components/map/temp-facility-detail";
 import { MiniHospitalIcon } from "@/components/map/hospital-marker";
 import { RoleSwitchCards } from "@/components/shell/role-switch-cards";
 import { useRole } from "@/components/providers/role-provider";
 import { useCases } from "@/components/providers/cases-provider";
-import { fetchCaseMarkers, fetchHospitals, occupancyBand } from "@/lib/data";
+import { fetchCaseMarkers, fetchHospitals, getTempFacilities, occupancyBand } from "@/lib/data";
 import { roleLabel } from "@/lib/ui";
-import type { ActiveCase, CaseMarker, Hospital } from "@/types";
+import type { ActiveCase, CaseMarker, Hospital, TempFacility } from "@/types";
 import { cn } from "@/lib/utils";
 
 function Check({
@@ -65,10 +66,17 @@ export default function MapPage() {
 
   const [showCases, setShowCases] = useState(true);
   const [showHospitals, setShowHospitals] = useState(true);
+  const [showTemp, setShowTemp] = useState(true);
   const [caseTypes, setCaseTypes] = useState({ dengue: true, covid: true, flu: true });
   const [bands, setBands] = useState({ high: true, medium: true, low: true });
   const [selected, setSelected] = useState<Hospital | null>(null);
   const [selectedCase, setSelectedCase] = useState<ActiveCase | null>(null);
+  const [selectedFacility, setSelectedFacility] = useState<TempFacility | null>(null);
+
+  // Temporary emergency facilities (campus quarantine/treatment sites) — same
+  // layer for every role.
+  const facilities = getTempFacilities();
+  const shownFacilities = showTemp ? facilities : [];
 
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [hospitalsOpen, setHospitalsOpen] = useState(true);
@@ -118,17 +126,19 @@ export default function MapPage() {
     shownHospitals = [...shownHospitals, selected];
   }
 
-  // Search index (hospitals + case areas)
+  // Search index (hospitals + case areas + temporary facilities)
   const matches = query.trim()
     ? [
         ...hospitals.map((h) => ({ kind: "hospital" as const, label: h.name, h })),
         ...cases.map((c) => ({ kind: "area" as const, label: c.area, c })),
+        ...facilities.map((f) => ({ kind: "facility" as const, label: f.name, f })),
       ].filter((m) => m.label.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 6)
     : [];
 
   const pickHospital = (h: Hospital) => {
     setSelected(h);
     setSelectedCase(null);
+    setSelectedFacility(null);
     setShowHospitals(true);
     fly(h.lat, h.lng);
     setQuery("");
@@ -138,7 +148,17 @@ export default function MapPage() {
   const pickCase = (c: ActiveCase) => {
     setSelectedCase(c);
     setSelected(null);
+    setSelectedFacility(null);
     fly(c.lat, c.lng);
+    setQuery("");
+  };
+
+  const pickFacility = (f: TempFacility) => {
+    setSelectedFacility(f);
+    setSelected(null);
+    setSelectedCase(null);
+    setShowTemp(true);
+    fly(f.lat, f.lng);
     setQuery("");
   };
 
@@ -158,6 +178,7 @@ export default function MapPage() {
     const m = matches[0];
     if (!m) return;
     if (m.kind === "hospital") pickHospital(m.h);
+    else if (m.kind === "facility") pickFacility(m.f);
     else pickArea(m.c.lat, m.c.lng);
   };
 
@@ -171,11 +192,14 @@ export default function MapPage() {
           cases={shownCases}
           hospitals={shownHospitals}
           activeCases={shownActiveCases}
+          tempFacilities={shownFacilities}
           enabledTypes={caseTypes}
           selectedId={selected?.id ?? null}
           selectedCaseId={selectedCase?.id ?? null}
+          selectedFacilityId={selectedFacility?.id ?? null}
           onSelectHospital={pickHospital}
           onSelectCase={pickCase}
+          onSelectFacility={pickFacility}
           flyTarget={flyTarget}
           flyNonce={flyNonce}
           zoomDir={zoom.dir}
@@ -205,10 +229,16 @@ export default function MapPage() {
                 {matches.map((m, i) => (
                   <li key={i}>
                     <button
-                      onClick={() => (m.kind === "hospital" ? pickHospital(m.h) : pickArea(m.c.lat, m.c.lng))}
+                      onClick={() =>
+                        m.kind === "hospital" ? pickHospital(m.h)
+                        : m.kind === "facility" ? pickFacility(m.f)
+                        : pickArea(m.c.lat, m.c.lng)
+                      }
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-secondary"
                     >
-                      {m.kind === "hospital" ? <Building2 className="size-4 text-info" /> : <Search className="size-4 text-muted-foreground" />}
+                      {m.kind === "hospital" ? <Building2 className="size-4 text-info" />
+                        : m.kind === "facility" ? <Tent className="size-4 text-gold" />
+                        : <Search className="size-4 text-muted-foreground" />}
                       <span className="truncate">{m.label}</span>
                       <span className="ml-auto text-xs text-muted-foreground">{m.kind}</span>
                     </button>
@@ -238,6 +268,7 @@ export default function MapPage() {
                 <p className="mb-1 flex items-center gap-2 text-sm font-semibold"><Layers className="size-4" /> Map Layers</p>
                 <Check label="Active Cases" checked={showCases} onChange={() => setShowCases((v) => !v)} />
                 <Check label="Hospital Beds" checked={showHospitals} onChange={() => setShowHospitals((v) => !v)} />
+                <Check label="Temporary Facilities" checked={showTemp} dot="bg-gold" onChange={() => setShowTemp((v) => !v)} />
               </div>
 
               <div>
@@ -267,7 +298,7 @@ export default function MapPage() {
           "md:inset-x-auto md:left-auto md:right-3 md:top-3 md:bottom-3 md:h-auto md:w-[340px] md:justify-start",
           // When showing the (collapsible) list, don't let the empty column block
           // the map — only the card itself stays interactive.
-          !selected && !selectedCase && "pointer-events-none"
+          !selected && !selectedCase && !selectedFacility && "pointer-events-none"
         )}
       >
         {selectedCase ? (
@@ -279,6 +310,8 @@ export default function MapPage() {
             onReportUpdate={() => router.push("/report")}
             onResolve={() => onResolveCase(selectedCase.id)}
           />
+        ) : selectedFacility ? (
+          <TempFacilityDetail facility={selectedFacility} onClose={() => setSelectedFacility(null)} />
         ) : selected ? (
           <HospitalDetail hospital={selected} onClose={() => setSelected(null)} />
         ) : (
@@ -309,6 +342,31 @@ export default function MapPage() {
               ))}
               {shownHospitals.length === 0 && (
                 <li className="py-6 text-center text-sm text-muted-foreground">No hospitals match the filters.</li>
+              )}
+              {shownFacilities.length > 0 && (
+                <>
+                  <li className="pt-2 text-xs font-semibold uppercase text-muted-foreground">
+                    Temporary Facilities
+                  </li>
+                  {shownFacilities.map((f) => (
+                    <li key={f.id}>
+                      <button
+                        onClick={() => pickFacility(f)}
+                        className="surface-muted flex w-full items-center gap-3 p-3 text-left transition-colors hover:border-gold/50"
+                      >
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gold/15 text-gold">
+                          <Tent className="size-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{f.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {f.capacity - f.occupied} spaces available · {f.host}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </>
               )}
             </ul>
             )}

@@ -9,6 +9,8 @@ export * from "./missions";
 export * from "./chats";
 export * from "./friends";
 export * from "./volunteers";
+export * from "./temp-facilities";
+export * from "./officers";
 
 // The signed-in person (mocked). Role is overridden at runtime by RoleProvider.
 export const currentUser: Volunteer = {

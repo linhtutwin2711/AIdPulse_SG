@@ -6,7 +6,7 @@ import { useMissions } from "@/components/providers/missions-provider";
 
 const ACTIONS = [
   { href: "/officer/broadcast", icon: Radio, title: "Broadcast Alert", desc: "Send emergency alerts to citizens in affected areas." },
-  { href: "/officer/broadcast", icon: BedDouble, title: "Hospital Beds", desc: "Update real-time hospital bed availability." },
+  { href: "/officer/beds", icon: BedDouble, title: "Hospital Beds", desc: "Update your hospital's real-time bed availability." },
   { href: "/officer/chat", icon: MessagesSquare, title: "Responder Chat", desc: "Coordinate securely with hospitals and response teams." },
   { href: "/officer/qr", icon: QrCode, title: "Mission QR", desc: "Generate check-in QR codes for volunteer missions." },
   { href: "/officer/opportunities", icon: ClipboardPlus, title: "Post Opportunity", desc: "Create volunteer opportunities for your hospital." },

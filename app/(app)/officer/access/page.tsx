@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Building2, Check, CheckCircle2, Loader2, Lock, Search, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowRight, Building2, Check, CheckCircle2, FileCheck2, FileWarning, Loader2, Lock, ScanSearch, Search, ShieldAlert, ShieldCheck, Upload } from "lucide-react";
+import { useProfile } from "@/components/providers/profile-provider";
 import { useRole } from "@/components/providers/role-provider";
+import { analyzeAuthorization, type AuthorizationAnalysis } from "@/lib/authorization-ai";
 import { getHospitals } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Step = 0 | 1 | 2 | 3;
-const STEP_LABELS = ["Identity", "Verification", "Authenticate"];
+const STEP_LABELS = ["Authorization", "Verification", "Authenticate"];
 
 /** Bold the part of `text` that matches the lowercased query `q`. */
 function highlight(text: string, q: string) {
@@ -28,11 +30,30 @@ function highlight(text: string, q: string) {
 export default function OfficerAccessPage() {
   const router = useRouter();
   const { setRole, setOfficerHospitalId } = useRole();
+  const { fullName } = useProfile();
   const hospitals = getHospitals();
   const [step, setStep] = useState<Step>(0);
   const [hospitalId, setHospitalId] = useState(hospitals[0]?.id ?? "");
   const [hospitalQuery, setHospitalQuery] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+
+  // AI scan of the confidential authorization letter — replaces typed
+  // credentials. The scan must confirm the document before Continue unlocks.
+  const [analysis, setAnalysis] = useState<AuthorizationAnalysis | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const docInput = useRef<HTMLInputElement>(null);
+
+  const onDocument = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setScanning(true);
+    setAnalysis(null);
+    const result = await analyzeAuthorization(file, fullName);
+    setAnalysis(result);
+    // The letter names the hospital — pre-select it for the appointment.
+    if (result.hospitalId) setHospitalId(result.hospitalId);
+    setScanning(false);
+  };
 
   const q = hospitalQuery.trim().toLowerCase();
   const filteredHospitals = q
@@ -84,13 +105,77 @@ export default function OfficerAccessPage() {
 
       <div className="surface p-6">
         {step === 0 && (
-          <form onSubmit={(e) => { e.preventDefault(); setStep(1); }} className="space-y-4">
-            <label className="block">
-              <span className="text-sm font-medium">Officer ID</span>
-              <input required placeholder="e.g. EO-SG-0481" className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none focus-visible:border-gold" />
-            </label>
-            <div className="block">
-              <div className="flex items-center justify-between">
+          <form onSubmit={(e) => { e.preventDefault(); if (analysis?.authorized) setStep(1); }} className="space-y-4">
+            {/* Upload the confidential authorization letter — the AI reads it. */}
+            <div>
+              <span className="text-sm font-medium">Authorization Document</span>
+              <input
+                ref={docInput}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                onChange={(e) => onDocument(e.target.files)}
+                className="hidden"
+                aria-label="Upload authorization document"
+              />
+              <button
+                type="button"
+                onClick={() => docInput.current?.click()}
+                className="surface-muted mt-1.5 grid h-28 w-full place-items-center text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span className="flex flex-col items-center gap-1.5 px-4 text-center">
+                  {scanning ? (
+                    <>
+                      <ScanSearch className="size-6 animate-pulse text-gold" />
+                      AI is verifying your authorization letter…
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="size-5" />
+                      Upload your official EO appointment / authorization letter
+                      <span className="text-xs">Issued and approved by your agency (e.g. MOH) — our AI verifies it</span>
+                    </>
+                  )}
+                </span>
+              </button>
+
+              {analysis && analysis.authorized && (
+                <div className="mt-2 rounded-xl border border-success/25 bg-success/5 p-3">
+                  <div className="flex items-center gap-2">
+                    <FileCheck2 className="size-4 shrink-0 text-success" />
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{analysis.documentType}</p>
+                    <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+                      {analysis.source === "gemini" ? "Gemini AI" : "On-device AI"} · {Math.round(analysis.confidence * 100)}%
+                    </span>
+                  </div>
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    <li><span className="text-foreground">Appointee:</span> {analysis.holder}</li>
+                    <li><span className="text-foreground">Hospital:</span> {analysis.hospitalName ?? "—"}</li>
+                    <li><span className="text-foreground">Issued by:</span> {analysis.issuer}</li>
+                    <li><span className="text-foreground">Approved by:</span> {analysis.approvedBy}</li>
+                  </ul>
+                </div>
+              )}
+
+              {analysis && !analysis.authorized && (
+                <div className="mt-2 flex items-start gap-2 rounded-xl border border-danger/25 bg-danger/5 p-3 text-sm">
+                  <FileWarning className="size-4 shrink-0 text-danger" />
+                  <p className="text-muted-foreground">
+                    This doesn&apos;t look like a valid EO authorization letter. Upload the
+                    official appointment document issued by your agency, or contact your
+                    division administrator.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* The letter names your hospital; correct it here only if needed. */}
+            <details className="block" open={Boolean(analysis?.authorized && !analysis.hospitalId)}>
+              <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+                {analysis?.hospitalId
+                  ? "Wrong hospital detected? Choose manually"
+                  : "Choose your hospital manually"}
+              </summary>
+              <div className="flex items-center justify-between pt-2">
                 <span className="text-sm font-medium">Hospital</span>
                 <span className="text-xs text-muted-foreground">
                   {q ? `${filteredHospitals.length} of ${hospitals.length}` : `${hospitals.length} hospitals`}
@@ -144,14 +229,20 @@ export default function OfficerAccessPage() {
               <span className="mt-1 block text-xs text-muted-foreground">
                 Volunteer opportunities you post will be listed under this hospital.
               </span>
-            </div>
-            <label className="block">
-              <span className="text-sm font-medium">Access Passphrase</span>
-              <input required type="password" placeholder="Enter your secure passphrase" className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none" />
-            </label>
-            <Button type="submit" size="lg" className="h-12 w-full bg-gold text-black text-base hover:bg-gold/90">
+            </details>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={!analysis?.authorized}
+              className="h-12 w-full bg-gold text-black text-base hover:bg-gold/90 disabled:opacity-50"
+            >
               Continue <ArrowRight className="size-5" />
             </Button>
+            {!analysis?.authorized && (
+              <p className="text-center text-xs text-muted-foreground">
+                Verify your authorization document to continue.
+              </p>
+            )}
           </form>
         )}
 

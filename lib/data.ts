@@ -16,6 +16,7 @@ import {
   opportunities,
   peopleDirectory,
   reportTypes,
+  tempFacilities,
 } from "@/constants";
 import type {
   ActiveCase,
@@ -35,6 +36,7 @@ import type {
   ReportTypeId,
   RiskLevel,
   Severity,
+  TempFacility,
   VolunteerStats,
 } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -129,6 +131,11 @@ export const getConversation = (id: string) =>
 // People you can connect with (the friend directory).
 // Supabase equivalent: supabase.from("profiles").select("*")
 export const getPeopleDirectory = (): Friend[] => peopleDirectory;
+
+// Temporary emergency facilities (campus quarantine/treatment sites) shown on
+// the map for every role. Supabase later: SELECT * FROM temp_facilities
+// WHERE status IN ('active','standby').
+export const getTempFacilities = (): TempFacility[] => tempFacilities;
 
 // WhatsApp-style lookup: is this phone number on AidPulse? Exact match only —
 // we never expose partial matches, so you can't fish for numbers.

@@ -14,6 +14,7 @@ import {
 import { Logo } from "@/components/brand/logo";
 import { PrivacyPolicy } from "@/components/legal/privacy-policy";
 import { Button } from "@/components/ui/button";
+import { enableBroadcastPush } from "@/lib/push";
 import { cn } from "@/lib/utils";
 
 type Perm = "prompt" | "granted" | "denied";
@@ -39,15 +40,33 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-function StatusNote({ state }: { state: Perm }) {
+function StatusNote({ state, hint }: { state: Perm; hint?: string | null }) {
+  const [showHelp, setShowHelp] = useState(false);
+
   if (state === "granted")
     return <p className="mt-0.5 text-xs font-medium text-success">✓ Allowed</p>;
-  if (state === "denied")
+
+  // Blocked or silently suppressed: keep the row clean — a small "Not working?"
+  // link reveals the how-to-fix steps only when asked.
+  if (state === "denied" || hint) {
+    const guide =
+      state === "denied"
+        ? "Blocked by the browser: click the padlock icon next to the address bar → Site settings → set this permission to Allow, then come back to this tab."
+        : hint;
     return (
-      <p className="mt-0.5 text-xs font-medium text-danger">
-        Blocked — enable it in your browser settings
-      </p>
+      <div className="mt-0.5 text-xs">
+        <button
+          type="button"
+          onClick={() => setShowHelp((v) => !v)}
+          className="font-medium text-danger underline underline-offset-2 hover:opacity-80"
+        >
+          Not working?
+        </button>
+        {showHelp && <p className="mt-1 max-w-72 text-muted-foreground">{guide}</p>}
+      </div>
     );
+  }
+
   return <p className="mt-0.5 text-xs text-muted-foreground">Tap to allow</p>;
 }
 
@@ -55,12 +74,23 @@ export default function PermissionsPage() {
   const router = useRouter();
   const [loc, setLoc] = useState<Perm>("prompt");
   const [notif, setNotif] = useState<Perm>("prompt");
+  // Extra guidance when the prompt was dismissed / silently suppressed.
+  const [notifHint, setNotifHint] = useState<string | null>(null);
 
-  // Reflect any already-decided permissions without re-prompting.
+  // Reflect any already-decided permissions without re-prompting. Re-checks on
+  // window focus too, so fixing the permission in browser settings and coming
+  // back to this tab updates the status without a reload.
   useEffect(() => {
-    if ("Notification" in window) {
-      setNotif(Notification.permission === "default" ? "prompt" : (Notification.permission as Perm));
-    }
+    const sync = () => {
+      if ("Notification" in window) {
+        setNotif(Notification.permission === "default" ? "prompt" : (Notification.permission as Perm));
+        // Permission already granted (e.g. before push existed, or re-enabled
+        // via site settings) → make sure this device is actually subscribed.
+        if (Notification.permission === "granted") void enableBroadcastPush();
+      }
+    };
+    sync();
+    window.addEventListener("focus", sync);
     navigator.permissions
       ?.query({ name: "geolocation" as PermissionName })
       .then((r) => {
@@ -68,6 +98,7 @@ export default function PermissionsPage() {
         r.onchange = () => setLoc(r.state as Perm);
       })
       .catch(() => {});
+    return () => window.removeEventListener("focus", sync);
   }, []);
 
   const requestLocation = () => {
@@ -81,15 +112,37 @@ export default function PermissionsPage() {
   };
 
   const requestNotifications = async () => {
+    setNotifHint(null);
     if (notif === "granted") return setNotif("prompt"); // visual off
     if (!("Notification" in window)) return setNotif("denied");
+    if (!window.isSecureContext) {
+      setNotifHint("Notifications need HTTPS or localhost — open the app at http://localhost:3002.");
+      return;
+    }
     const res = await Notification.requestPermission();
     if (res === "granted") {
       setNotif("granted");
-      // A real notification proves the permission actually works.
-      new Notification("AidPulse SG", { body: "Emergency alerts are now enabled." });
+      // Subscribe this device to emergency broadcast push (fire-and-forget —
+      // unsupported contexts, e.g. a non-installed iPhone Safari tab, just
+      // skip and the in-app banner still covers them).
+      void enableBroadcastPush();
+      // A real notification proves the permission actually works. Some
+      // platforms (e.g. Android Chrome) don't support page-created
+      // notifications — permission is still granted, so don't crash.
+      try {
+        new Notification("AidPulse SG", { body: "Emergency alerts are now enabled." });
+      } catch {
+        /* granted but constructor unsupported — fine */
+      }
+    } else if (res === "default") {
+      // Prompt dismissed, or Chrome/Edge "quieter messaging" suppressed it
+      // (look for a crossed-out bell icon in the address bar).
+      setNotif("prompt");
+      setNotifHint(
+        "The prompt was closed or silently blocked. Look for a bell icon in the address bar, or use the padlock icon → Site settings → Notifications → Allow."
+      );
     } else {
-      setNotif(res === "default" ? "prompt" : "denied");
+      setNotif("denied");
     }
   };
 
@@ -163,7 +216,7 @@ export default function PermissionsPage() {
                   <p className="text-sm text-muted-foreground">
                     Get important alerts and updates
                   </p>
-                  <StatusNote state={notif} />
+                  <StatusNote state={notif} hint={notifHint} />
                 </div>
               </div>
               <Toggle on={notif === "granted"} onToggle={requestNotifications} />

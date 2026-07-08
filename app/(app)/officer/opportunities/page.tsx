@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Building2, CalendarDays, CheckCircle2, Clock, Plus, ShieldCheck, Users } from "lucide-react";
+import { OfficerNav } from "@/components/officer/officer-nav";
 import { useRole } from "@/components/providers/role-provider";
 import { useOpportunities } from "@/components/providers/opportunities-provider";
 import { getHospital, getHospitals } from "@/lib/data";
@@ -76,11 +77,14 @@ export default function OfficerPostOpportunityPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Post an Opportunity</h1>
-        <p className="text-sm text-muted-foreground">
-          Create a volunteer opportunity for your hospital. It appears instantly in volunteers&apos; Nearby Opportunities.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Post an Opportunity</h1>
+          <p className="text-sm text-muted-foreground">
+            Create a volunteer opportunity for your hospital. It appears instantly in volunteers&apos; Nearby Opportunities.
+          </p>
+        </div>
+        <OfficerNav />
       </div>
 
       <div className="surface flex items-center gap-3 p-4">

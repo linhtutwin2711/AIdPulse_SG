@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { BedDouble, Minus, Plus, Radio, Send } from "lucide-react";
+import { Radio, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { bedSummary, getHospitals } from "@/lib/data";
+import { OfficerNav } from "@/components/officer/officer-nav";
 import { cn } from "@/lib/utils";
 import type { Severity } from "@/types";
 
@@ -16,17 +16,40 @@ const SEV_CLASS: Record<Severity, string> = {
 };
 
 export default function BroadcastPage() {
-  const hospitals = getHospitals();
   const [severity, setSeverity] = useState<Severity>("high");
+  const [area, setArea] = useState("Tanjong Pagar");
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState(false);
-  const [beds, setBeds] = useState<Record<string, number>>(
-    Object.fromEntries(hospitals.map((h) => [h.id, bedSummary(h).available]))
-  );
+  const [delivered, setDelivered] = useState<number | null>(null);
+
+  const sendBroadcast = async () => {
+    setSent(true);
+    setDelivered(null);
+    const text = message;
+    setMessage("");
+    // Push to every subscribed device (all roles). Fails soft: the in-app
+    // confirmation still shows even when push isn't configured/subscribed.
+    try {
+      const res = await fetch("/api/broadcast/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ area, severity, message: text }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDelivered(data.delivered ?? 0);
+      }
+    } catch {
+      /* offline / unconfigured — in-app confirmation only */
+    }
+  };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      {/* Broadcast */}
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div className="flex justify-end">
+        <OfficerNav />
+      </div>
+
       <section className="surface p-6">
         <div className="flex items-center gap-3">
           <span className="flex size-11 items-center justify-center rounded-xl bg-danger/15 text-danger">
@@ -38,10 +61,14 @@ export default function BroadcastPage() {
           </div>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); setSent(true); setMessage(""); }} className="mt-6 space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); void sendBroadcast(); }} className="mt-6 space-y-4">
           <label className="block">
             <span className="text-sm font-medium">Target Area</span>
-            <select className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none">
+            <select
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm outline-none"
+            >
               <option>Tanjong Pagar</option>
               <option>Geylang</option>
               <option>Queenstown</option>
@@ -82,6 +109,8 @@ export default function BroadcastPage() {
           {sent && (
             <p className="rounded-xl bg-success/10 px-4 py-3 text-sm text-success">
               ✓ Broadcast sent to citizens in the selected area.
+              {delivered !== null &&
+                ` Push notifications delivered to ${delivered} subscribed device${delivered === 1 ? "" : "s"}.`}
             </p>
           )}
 
@@ -89,45 +118,6 @@ export default function BroadcastPage() {
             <Send className="size-5" /> Send Broadcast
           </Button>
         </form>
-      </section>
-
-      {/* Bed management */}
-      <section className="surface p-6">
-        <div className="flex items-center gap-3">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-info/15 text-info">
-            <BedDouble className="size-6" />
-          </span>
-          <div>
-            <h2 className="text-xl font-bold">Hospital Bed Availability</h2>
-            <p className="text-sm text-muted-foreground">Update real-time capacity for responders.</p>
-          </div>
-        </div>
-
-        <ul className="mt-6 space-y-3">
-          {hospitals.map((h) => {
-            const total = bedSummary(h).total;
-            const available = beds[h.id];
-            const adjust = (delta: number) =>
-              setBeds((prev) => ({ ...prev, [h.id]: Math.max(0, Math.min(total, prev[h.id] + delta)) }));
-            return (
-              <li key={h.id} className="surface-muted flex items-center justify-between p-4">
-                <div>
-                  <p className="font-medium">{h.name}</p>
-                  <p className="text-xs text-muted-foreground">{available} of {total} beds available</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => adjust(-1)} className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-secondary" aria-label="Decrease">
-                    <Minus className="size-4" />
-                  </button>
-                  <span className="w-8 text-center font-semibold">{available}</span>
-                  <button onClick={() => adjust(1)} className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-secondary" aria-label="Increase">
-                    <Plus className="size-4" />
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
       </section>
     </div>
   );

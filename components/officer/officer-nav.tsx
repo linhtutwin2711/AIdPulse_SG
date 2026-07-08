@@ -2,27 +2,37 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, ClipboardList, MapPinned, QrCode } from "lucide-react";
+import {
+  ArrowLeft,
+  BedDouble,
+  ClipboardPlus,
+  MessagesSquare,
+  QrCode,
+  Radio,
+  Users,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// The three volunteer features. Rendered beside each volunteer page's title so
-// a volunteer can jump straight between them without going back to the
-// dashboard / Alerts page first.
+// The officer features, rendered beside each officer page's title so an
+// officer can jump between tools without going back to the Command Center.
 const LINKS = [
-  { href: "/volunteer/missions", label: "Missions", icon: ClipboardList },
-  { href: "/volunteer/opportunities", label: "Opportunities", icon: MapPinned },
-  { href: "/volunteer/checkin", label: "Check-in", icon: QrCode },
+  { href: "/officer/broadcast", label: "Broadcast", icon: Radio },
+  { href: "/officer/beds", label: "Beds", icon: BedDouble },
+  { href: "/officer/chat", label: "Chat", icon: MessagesSquare },
+  { href: "/officer/qr", label: "Mission QR", icon: QrCode },
+  { href: "/officer/opportunities", label: "Opportunities", icon: ClipboardPlus },
+  { href: "/officer/volunteers", label: "Volunteers", icon: Users },
 ];
 
-export function VolunteerNav({ className }: { className?: string }) {
+export function OfficerNav({ className }: { className?: string }) {
   const pathname = usePathname();
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {/* Back to the volunteer dashboard (the Alerts page). */}
+      {/* Back to the officer dashboard (Command Center). */}
       <Link
-        href="/volunteer/dashboard"
-        aria-label="Back to volunteer dashboard"
+        href="/officer/dashboard"
+        aria-label="Back to officer dashboard"
         className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-card/60 text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" />
@@ -37,7 +47,7 @@ export function VolunteerNav({ className }: { className?: string }) {
               className={cn("nav-tab", active && "nav-tab-active")}
             >
               <l.icon className="size-4" />
-              <span className="max-sm:hidden">{l.label}</span>
+              <span className="max-lg:hidden">{l.label}</span>
             </Link>
           );
         })}
