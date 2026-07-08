@@ -12,9 +12,24 @@ import {
 } from "react-leaflet";
 import { hospitalMarkerHtml } from "./hospital-marker";
 import { SG_LAND_RINGS } from "./sg-land";
-import type { ActiveCase, CaseMarker, Hospital } from "@/types";
+import type { ActiveCase, CaseMarker, Hospital, TempFacility } from "@/types";
 import { SG_CENTER } from "@/constants";
 import { reportTypeColor } from "@/lib/data";
+
+// Temporary facilities render as gold rounded-square badges — visually distinct
+// from both the hospital "H" pins and the case dots. Tent = quarantine space,
+// cross = treatment clinic.
+const tempFacilityHtml = (kind: TempFacility["kind"], selected: boolean) => `
+<div style="width:34px;height:34px;border-radius:10px;background:#d4a72c;
+  border:2px solid ${selected ? "#ffffff" : "rgba(255,255,255,0.65)"};
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 10px rgba(0,0,0,0.55)${selected ? ",0 0 0 5px rgba(212,167,44,0.35)" : ""}">
+  ${
+    kind === "treatment"
+      ? '<svg width="15" height="15" viewBox="0 0 16 16"><path d="M6 1h4v5h5v4h-5v5H6v-5H1V6h5z" fill="#141414"/></svg>'
+      : '<svg width="17" height="17" viewBox="0 0 18 18"><path d="M9 2.5 L16.5 15.5 H11.6 L9 10.8 L6.4 15.5 H1.5 Z" fill="#141414"/></svg>'
+  }
+</div>`;
 
 // Dots are coloured by case TYPE so the colours match the filter legend
 // (Dengue = red, COVID-19 = blue, Influenza = amber).
@@ -105,11 +120,14 @@ export default function MapInner({
   cases,
   hospitals,
   activeCases,
+  tempFacilities,
   enabledTypes,
   selectedId,
   selectedCaseId,
+  selectedFacilityId,
   onSelectHospital,
   onSelectCase,
+  onSelectFacility,
   flyTarget,
   flyNonce,
   zoomDir,
@@ -118,11 +136,14 @@ export default function MapInner({
   cases: CaseMarker[];
   hospitals: Hospital[];
   activeCases: ActiveCase[];
+  tempFacilities: TempFacility[];
   enabledTypes: { dengue: boolean; covid: boolean; flu: boolean };
   selectedId: string | null;
   selectedCaseId: string | null;
+  selectedFacilityId: string | null;
   onSelectHospital: (h: Hospital) => void;
   onSelectCase: (c: ActiveCase) => void;
+  onSelectFacility: (f: TempFacility) => void;
   flyTarget: [number, number] | null;
   flyNonce: number;
   zoomDir: number;
@@ -234,6 +255,26 @@ export default function MapInner({
               <Tooltip direction="top">{c.locationName}</Tooltip>
             </CircleMarker>
           </Fragment>
+        );
+      })}
+
+      {/* Temporary emergency facilities — campus quarantine/treatment sites. */}
+      {tempFacilities.map((f) => {
+        const icon = L.divIcon({
+          html: tempFacilityHtml(f.kind, selectedFacilityId === f.id),
+          className: "hm-divicon",
+          iconSize: [34, 34],
+          iconAnchor: [17, 17],
+        });
+        return (
+          <Marker
+            key={f.id}
+            position={[f.lat, f.lng]}
+            icon={icon}
+            eventHandlers={{ click: () => onSelectFacility(f) }}
+          >
+            <Tooltip direction="top">{f.name}</Tooltip>
+          </Marker>
         );
       })}
 

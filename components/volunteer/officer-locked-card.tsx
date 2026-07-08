@@ -39,12 +39,12 @@ export function OfficerLockedCard() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate font-semibold">Emergency Officer</p>
-            <span className="pill bg-secondary text-[10px] text-muted-foreground">
-              <Lock className="size-2.5" /> Locked
+            <span className="pill bg-gold/15 text-[10px] text-gold">
+              <Lock className="size-2.5" /> Restricted
             </span>
           </div>
           <p className="truncate text-sm text-muted-foreground">
-            Register to access officer features
+            For authorized agency personnel only
           </p>
         </div>
 
@@ -54,13 +54,21 @@ export function OfficerLockedCard() {
       <DialogContent>
         <DialogHeader>
           <span className="flex size-11 items-center justify-center rounded-xl bg-gold/15 text-gold">
-            <Lock className="size-5" />
+            <ShieldAlert className="size-5" />
           </span>
-          <DialogTitle>This feature is locked</DialogTitle>
+          <DialogTitle>Higher clearance required</DialogTitle>
           <DialogDescription>
-            Please register as an Emergency Officer to access officer tools.
+            Emergency Officer is a restricted role for authorized personnel of
+            response agencies (MOH, SCDF, NEA, hospital emergency departments).
+            Unlocking it requires verification: upload your official
+            appointment/authorization letter for AI review, then confirm a
+            one-time code.
           </DialogDescription>
         </DialogHeader>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Lock className="size-3 shrink-0" />
+          All access attempts are logged and monitored for security.
+        </p>
         <DialogFooter showCloseButton>
           <DialogClose
             nativeButton={false}
@@ -71,7 +79,7 @@ export function OfficerLockedCard() {
               />
             }
           >
-            Register as Officer
+            Proceed to Verification
           </DialogClose>
         </DialogFooter>
       </DialogContent>

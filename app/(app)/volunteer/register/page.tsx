@@ -170,7 +170,24 @@ export default function VolunteerRegisterPage() {
   // pattern as the report page.
   const [address, setAddress] = useState("");
   const [dob, setDob] = useState("");
+  const [dobError, setDobError] = useState<string | null>(null);
   const [gender, setGender] = useState("");
+
+  // Volunteers must be adults: age in full years as of today, or null if unset.
+  // Parsed date-only (new Date("YYYY-MM-DD") is UTC midnight, which can shift a
+  // calendar day across timezones and let a 17-year-old pass early).
+  const ageFromDob = (iso: string): number | null => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    if (!m) return null;
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    const now = new Date();
+    let age = now.getFullYear() - y;
+    const hadBirthday =
+      now.getMonth() + 1 > mo || (now.getMonth() + 1 === mo && now.getDate() >= d);
+    if (!hadBirthday) age -= 1;
+    return age;
+  };
   const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState<string | null>(null);
 
@@ -248,6 +265,22 @@ export default function VolunteerRegisterPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              // Belt & braces: pointer-events can't reach the submit button
+              // before verification, but programmatic/keyboard submits could.
+              if (!emailVerified) return;
+              // Volunteers must be 18 or older — ask for a refill otherwise.
+              const age = ageFromDob(dob);
+              if (age === null) {
+                setDobError("Please enter your date of birth.");
+                return;
+              }
+              if (age < 18) {
+                setDobError(
+                  "You must be at least 18 years old to register as a volunteer. Please check your date of birth."
+                );
+                return;
+              }
+              setDobError(null);
               // Persist the registration + skills to Supabase, keyed by phone
               // (falls back to localStorage when phone/Supabase are unavailable).
               saveVolunteerProfile(phoneKey("", phone), {
@@ -259,6 +292,21 @@ export default function VolunteerRegisterPage() {
                 certifications: analyses,
               });
               setStage("review");
+            }}
+            onKeyDown={(e) => {
+              // Enter in a text field must not submit the whole registration —
+              // only an explicit click on "Register as a Volunteer" does. In the
+              // email step, Enter triggers the step's own action instead.
+              if (e.key !== "Enter") return;
+              const el = e.target as HTMLElement;
+              if (el instanceof HTMLTextAreaElement || el instanceof HTMLButtonElement) return;
+              e.preventDefault();
+              if (el instanceof HTMLInputElement) {
+                if (el.type === "email" && !emailVerified) sendEmailCode();
+                if (el.placeholder === "Enter the 6-digit code" && codeEntry.length === 6) {
+                  confirmEmailCode();
+                }
+              }
             }}
             className="mt-6 space-y-4"
           >
@@ -364,7 +412,23 @@ export default function VolunteerRegisterPage() {
               )}
             >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Date of Birth" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+              <div>
+                <Field
+                  label="Date of Birth"
+                  type="date"
+                  value={dob}
+                  max={new Date().toISOString().slice(0, 10)}
+                  aria-invalid={Boolean(dobError)}
+                  onChange={(e) => { setDob(e.target.value); setDobError(null); }}
+                />
+                {dobError ? (
+                  <p className="mt-1 text-xs text-danger">{dobError}</p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    You must be 18 or older to volunteer.
+                  </p>
+                )}
+              </div>
               <label className="block">
                 <span className="text-sm font-medium">Gender</span>
                 <select
@@ -592,8 +656,18 @@ function AIReview({ onDone }: { onDone: () => void }) {
     return () => clearInterval(id);
   }, [onDone]);
 
-  const steps = ["Submitted", "Reviewing", "Approved"];
-  const activeStep = pct >= 100 ? 2 : pct > 20 ? 1 : 0;
+  // What the AI is doing right now, narrated as the ring fills.
+  const phase =
+    pct < 30
+      ? "Verifying your application details…"
+      : pct < 60
+        ? "Analysing your certificates and skills…"
+        : pct < 100
+          ? "Searching volunteering opportunities that match your skills…"
+          : "Matches found — preparing your recommendations!";
+
+  const steps = ["Submitted", "AI Review", "Matching", "Approved"];
+  const activeStep = pct >= 100 ? 3 : pct >= 60 ? 2 : pct >= 30 ? 1 : 0;
 
   return (
     <div className="surface p-8 text-center">
@@ -601,8 +675,8 @@ function AIReview({ onDone }: { onDone: () => void }) {
         <Sparkles className="size-6" />
       </span>
       <h2 className="mt-4 text-xl font-bold">Application Received!</h2>
-      <p className="text-sm text-muted-foreground">
-        AI Automated Review in Progress
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        {phase}
       </p>
 
       {/* Progress ring */}
@@ -630,7 +704,13 @@ function AIReview({ onDone }: { onDone: () => void }) {
                 i <= activeStep ? "bg-info/15 text-info" : "bg-secondary text-muted-foreground"
               )}
             >
-              {i < activeStep ? <CheckCircle2 className="size-3" /> : i === 1 ? <RefreshCw className="size-3 animate-spin" /> : <Bot className="size-3" />}
+              {i < activeStep || pct >= 100 ? (
+                <CheckCircle2 className="size-3" />
+              ) : i === activeStep ? (
+                <RefreshCw className="size-3 animate-spin" />
+              ) : (
+                <Bot className="size-3" />
+              )}
               {s}
             </span>
             {i < steps.length - 1 && <span className="h-px w-5 bg-border" />}

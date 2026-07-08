@@ -1,29 +1,82 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, Search, Send, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, Building2, Plus, Search, Send, UserPlus, Users } from "lucide-react";
+import { officerDirectory } from "@/constants";
 import { getConversations } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import type { ChatMessage } from "@/types";
+import type { ChatMessage, Conversation, OfficerContact } from "@/types";
 
 type Filter = "all" | "direct" | "groups" | "unread";
 
+// EO contacts you add (found by hospital search) survive reloads.
+const CONTACTS_KEY = "aidpulse:eo-contacts";
+
 export default function ResponderChatPage() {
-  const conversations = useMemo(() => getConversations(), []);
-  const [activeId, setActiveId] = useState(conversations[0].id);
+  const seed = useMemo(() => getConversations(), []);
+  // Conversations opened by adding a hospital's duty officer.
+  const [added, setAdded] = useState<Conversation[]>([]);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(CONTACTS_KEY);
+      if (saved) setAdded(JSON.parse(saved));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const conversations = useMemo(() => [...added, ...seed], [added, seed]);
+  const [activeId, setActiveId] = useState(seed[0].id);
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
   const [drafts, setDrafts] = useState<Record<string, ChatMessage[]>>({});
   const [draft, setDraft] = useState("");
 
-  const active = conversations.find((c) => c.id === activeId)!;
+  const active = conversations.find((c) => c.id === activeId) ?? seed[0];
   const messages = [...active.messages, ...(drafts[activeId] ?? [])];
 
+  const q = search.trim().toLowerCase();
   const list = conversations.filter((c) => {
+    if (q && !c.name.toLowerCase().includes(q)) return false;
     if (filter === "direct") return c.kind === "direct";
     if (filter === "groups") return c.kind === "group";
     if (filter === "unread") return !!c.unread;
     return true;
   });
+
+  // Hospital search: each hospital has exactly one duty EO — find them by the
+  // hospital's name (the officer-side equivalent of finding a friend by phone).
+  const directoryMatches: OfficerContact[] = q
+    ? officerDirectory
+        .filter(
+          (o) =>
+            !conversations.some((c) => c.id === o.id) &&
+            (o.hospitalName.toLowerCase().includes(q) || o.name.toLowerCase().includes(q))
+        )
+        .slice(0, 5)
+    : [];
+
+  const addContact = (o: OfficerContact) => {
+    const conv: Conversation = {
+      id: o.id,
+      name: o.name,
+      kind: "direct",
+      online: o.online,
+      lastMessage: `Secure line · ${o.hospitalName}`,
+      lastTime: "now",
+      messages: [],
+    };
+    const next = [conv, ...added];
+    setAdded(next);
+    try {
+      window.localStorage.setItem(CONTACTS_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+    setActiveId(o.id);
+    setSearch("");
+  };
 
   const send = () => {
     if (!draft.trim()) return;
@@ -38,7 +91,18 @@ export default function ResponderChatPage() {
   };
 
   return (
-    <div className="grid h-[calc(100dvh-7rem)] grid-cols-[320px_1fr] gap-4 overflow-hidden max-md:grid-cols-1">
+    // Responder chat takes over the whole page — the only chrome is a back
+    // button to the officer dashboard.
+    <div className="flex h-[calc(100dvh-7rem)] flex-col gap-3 overflow-hidden">
+      <div>
+        <Link
+          href="/officer/dashboard"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> Back to Dashboard
+        </Link>
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-[320px_1fr] gap-4 overflow-hidden max-md:grid-cols-1">
       {/* Conversation list */}
       <aside className="surface flex flex-col overflow-hidden p-0">
         <div className="flex items-center justify-between border-b border-border p-4">
@@ -48,9 +112,15 @@ export default function ResponderChatPage() {
           </button>
         </div>
         <div className="border-b border-border p-3">
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-input/30 px-3 py-2 text-sm text-muted-foreground">
-            <Search className="size-4" /> Search conversations
-          </div>
+          <label className="flex items-center gap-2 rounded-lg border border-border bg-input/30 px-3 py-2 text-sm">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search chats or a hospital…"
+              className="w-full bg-transparent outline-none placeholder:text-muted-foreground"
+            />
+          </label>
           <div className="mt-3 flex gap-1.5">
             {(["all", "direct", "groups", "unread"] as Filter[]).map((f) => (
               <button
@@ -67,6 +137,42 @@ export default function ResponderChatPage() {
           </div>
         </div>
         <ul className="flex-1 overflow-y-auto no-scrollbar">
+          {/* Hospital directory hits — duty EOs you haven't connected with yet. */}
+          {directoryMatches.length > 0 && (
+            <>
+              <li className="px-4 pb-1 pt-3 text-xs font-semibold uppercase text-muted-foreground">
+                Emergency Officers · by hospital
+              </li>
+              {directoryMatches.map((o) => (
+                <li key={o.id}>
+                  <button
+                    onClick={() => addContact(o)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary/40"
+                  >
+                    <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-gold/15 text-sm font-semibold text-gold">
+                      {o.initials}
+                      {o.online && <span className="absolute -bottom-0 -right-0 size-3 rounded-full border-2 border-card bg-success" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{o.name}</span>
+                      <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                        <Building2 className="size-3 shrink-0" /> {o.hospitalName}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-gold px-2.5 py-1 text-[11px] font-semibold text-black">
+                      <UserPlus className="size-3" /> Add
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {list.length > 0 && <li className="mx-4 my-1 h-px bg-border" />}
+            </>
+          )}
+          {list.length === 0 && directoryMatches.length === 0 && q && (
+            <li className="px-4 py-8 text-center text-sm text-muted-foreground">
+              No chats or hospitals match &ldquo;{search.trim()}&rdquo;.
+            </li>
+          )}
           {list.map((c) => (
             <li key={c.id}>
               <button
@@ -150,6 +256,7 @@ export default function ResponderChatPage() {
           </div>
         </form>
       </section>
+      </div>
     </div>
   );
 }

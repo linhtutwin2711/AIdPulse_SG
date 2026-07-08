@@ -247,6 +247,40 @@ export interface ChatMessage {
   self?: boolean;
 }
 
+/**
+ * The duty Emergency Officer of one hospital — the person another EO reaches
+ * when they search that hospital in Responder Chat. Exactly one per hospital.
+ */
+export interface OfficerContact {
+  id: string; // "eo-<hospitalId>"
+  name: string;
+  initials: string;
+  hospitalId: string;
+  hospitalName: string;
+  online?: boolean;
+}
+
+/**
+ * A temporary emergency facility — spaces offered up during a crisis (e.g.
+ * university halls converted to quarantine or treatment use, as during
+ * COVID-19). Shown on the map for every role alongside hospitals.
+ */
+export interface TempFacility {
+  id: string;
+  name: string;
+  kind: "quarantine" | "treatment";
+  /** Host organisation offering the space, e.g. "NUS". */
+  host: string;
+  purpose: string;
+  lat: number;
+  lng: number;
+  capacity: number;
+  occupied: number;
+  status: "active" | "standby";
+  /** Human label for when it was activated, e.g. "Activated 28 Jun 2026". */
+  since: string;
+}
+
 // A person you can connect with. The mock directory in `constants/friends.ts`
 // implements this; a Supabase `profiles` query replaces it later.
 export interface Friend {

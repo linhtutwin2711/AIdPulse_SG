@@ -7,8 +7,12 @@ import { fetchAreaRanks } from "@/lib/data";
 import { severityDot } from "@/lib/ui";
 import type { AreaRank } from "@/types";
 
+// Keep the card compact: top 5 by default, the rest behind "View All".
+const TOP_N = 5;
+
 export function AreaRanking() {
   const [ranks, setRanks] = useState<AreaRank[]>([]);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -21,6 +25,8 @@ export function AreaRanking() {
   }, []);
 
   const max = Math.max(1, ...ranks.map((r) => r.cases));
+  const visible = showAll ? ranks : ranks.slice(0, TOP_N);
+  const hidden = ranks.length - TOP_N;
   return (
     <div className="surface p-5">
       <div className="flex items-center justify-between">
@@ -33,8 +39,8 @@ export function AreaRanking() {
         </Link>
       </div>
 
-      <ul className="mt-4 space-y-3">
-        {ranks.map((r) => (
+      <ul className={`mt-4 space-y-3 ${showAll ? "max-h-72 overflow-y-auto pr-1 no-scrollbar" : ""}`}>
+        {visible.map((r) => (
           <li key={r.area} className="flex items-center gap-3">
             <span className="w-4 text-sm font-semibold text-muted-foreground">{r.rank}</span>
             <span className="w-28 truncate text-sm">{r.area}</span>
@@ -48,7 +54,17 @@ export function AreaRanking() {
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-muted-foreground">Ranking updated 5 min ago</p>
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">Ranking updated 5 min ago</p>
+        {hidden > 0 && (
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="text-xs font-medium text-info hover:underline"
+          >
+            {showAll ? "Show Top 5" : `View All (${ranks.length})`}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

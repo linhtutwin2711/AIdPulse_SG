@@ -46,7 +46,14 @@ export default function OpportunitiesPage() {
     return new Set(matchOpportunities(mySkills, all, true).map((m) => m.opportunity.id));
   }, [mySkills, all]);
 
+  // Free-text search across hospital/organisation, title, location, and role.
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+
   const list = all.filter((o) => {
+    if (q && !`${o.org} ${o.title} ${o.location} ${o.roleType}`.toLowerCase().includes(q)) {
+      return false;
+    }
     if (tab === "near") return o.distanceKm <= 2;
     if (tab === "cert") return certMatched.has(o.id);
     if (tab === "urgent") return o.urgency === "urgent";
@@ -94,9 +101,16 @@ export default function OpportunitiesPage() {
 
       <section>
         <div className="flex justify-end">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm text-muted-foreground max-md:hidden">
-            <Search className="size-4" /> Search opportunities…
-          </div>
+          <label className="flex w-full max-w-xs items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by hospital, role, or location…"
+              aria-label="Search opportunities by hospital, role, or location"
+              className="w-full bg-transparent outline-none placeholder:text-muted-foreground"
+            />
+          </label>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -115,6 +129,13 @@ export default function OpportunitiesPage() {
         </div>
 
         <div className="mt-4 space-y-3">
+          {list.length === 0 && (
+            <div className="surface p-8 text-center text-sm text-muted-foreground">
+              {q
+                ? `No opportunities match "${query.trim()}" — try a different hospital, role, or location.`
+                : "No opportunities in this tab right now."}
+            </div>
+          )}
           {list.map((o) => {
             const applied = hasApplied(o.id);
             // Filled = others already signed up + your own active application.
@@ -166,11 +187,6 @@ export default function OpportunitiesPage() {
             </div>
             );
           })}
-          {list.length === 0 && (
-            <div className="surface p-10 text-center text-sm text-muted-foreground">
-              No opportunities in this category right now.
-            </div>
-          )}
         </div>
       </section>
       </div>

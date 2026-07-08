@@ -2,6 +2,7 @@
 
 import { QRCodeSVG } from "qrcode.react";
 import { CalendarDays, MapPin, QrCode } from "lucide-react";
+import { OfficerNav } from "@/components/officer/officer-nav";
 import { useMissions } from "@/components/providers/missions-provider";
 import { statusClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
@@ -15,11 +16,14 @@ export default function OfficerQrPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Mission QR Codes</h1>
-        <p className="text-sm text-muted-foreground">
-          Generate a check-in QR for a mission. Volunteers scan it (or enter the code) to check in on-site.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Mission QR Codes</h1>
+          <p className="text-sm text-muted-foreground">
+            Generate a check-in QR for a mission. Volunteers scan it (or enter the code) to check in on-site.
+          </p>
+        </div>
+        <OfficerNav />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

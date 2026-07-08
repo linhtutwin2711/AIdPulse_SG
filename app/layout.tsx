@@ -19,6 +19,13 @@ export const metadata: Metadata = {
   title: "AidPulse SG — All in one place. Faster Response.",
   description:
     "AidPulse SG: real-time health & emergency response for Singapore. Track cases, hospital beds, and coordinate volunteers.",
+  // PWA / install-to-home-screen (required for Web Push on iOS 16.4+).
+  icons: { apple: "/pwa/apple-touch-icon.png" },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "AidPulse",
+  },
 };
 
 export default function RootLayout({

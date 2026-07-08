@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Ban, ChevronDown, HeartPulse } from "lucide-react";
+import { OfficerNav } from "@/components/officer/officer-nav";
 import { volunteerRoster } from "@/constants";
 import { useMissions } from "@/components/providers/missions-provider";
-import { useProfile } from "@/components/providers/profile-provider";
 import { ImpactStats } from "@/components/volunteer/impact-stats";
 import {
   Dialog,
@@ -46,36 +46,41 @@ function CancellationCard({ c }: { c: MissionCancellation }) {
 }
 
 export default function OfficerVolunteersPage() {
-  const { stats, missions, markCancellationsSeen } = useMissions();
-  const { displayName, initials } = useProfile();
+  const { missions, markCancellationsSeen } = useMissions();
   const [selected, setSelected] = useState<VolunteerProfile | null>(null);
 
-  // The signed-in volunteer's cancellations come live from their mission list.
-  const youCancellations: MissionCancellation[] = missions
+  // Live cancellations from this browser's volunteer activity. The signed-in
+  // person is an EO here (not a volunteer), so they are NOT listed themselves —
+  // the live cancellations surface under the first roster volunteer so the
+  // officer review flow stays demonstrable.
+  const liveCancellations: MissionCancellation[] = missions
     .filter((m) => m.status === "cancelled" && m.cancelReason)
     .map((m) => ({ title: m.title, reason: m.cancelReason!, note: m.cancelNote, when: whenLabel(m.cancelledAt) }));
   // New (unacknowledged) cancellations drive the red dot + review banner.
   const unseenCount = missions.filter((m) => m.status === "cancelled" && m.cancelSeen === false).length;
 
-  // The signed-in volunteer first (live stats), then the mock roster.
-  const roster: VolunteerProfile[] = [
-    { id: "you", name: displayName, initials, skills: ["General Volunteer"], stats, you: true, cancellations: youCancellations },
-    ...volunteerRoster,
-  ];
+  const roster: VolunteerProfile[] = volunteerRoster.map((v, i) =>
+    i === 0 && liveCancellations.length > 0
+      ? { ...v, cancellations: [...liveCancellations, ...(v.cancellations ?? [])] }
+      : v
+  );
 
-  // Opening the signed-in volunteer's profile acknowledges their cancellations.
+  // Opening the flagged volunteer's profile acknowledges the new cancellations.
   const openProfile = (v: VolunteerProfile) => {
     setSelected(v);
-    if (v.you) markCancellationsSeen();
+    if (v.id === roster[0].id) markCancellationsSeen();
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Volunteers</h1>
-        <p className="text-sm text-muted-foreground">
-          Browse volunteers and their impact. Click a volunteer to see their full profile and any cancellations.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Volunteers</h1>
+          <p className="text-sm text-muted-foreground">
+            Browse volunteers and their impact. Click a volunteer to see their full profile and any cancellations.
+          </p>
+        </div>
+        <OfficerNav />
       </div>
 
       {unseenCount > 0 && (
@@ -88,9 +93,9 @@ export default function OfficerVolunteersPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {roster.map((v) => {
+        {roster.map((v, i) => {
           const cancelCount = v.cancellations?.length ?? 0;
-          const showDot = !!v.you && unseenCount > 0;
+          const showDot = i === 0 && unseenCount > 0;
           return (
             <button
               key={v.id}
