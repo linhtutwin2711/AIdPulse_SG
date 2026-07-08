@@ -455,12 +455,21 @@ export function newsImage(raw: string | null | undefined, text = ""): string {
   return match?.img ?? "/images/news/health-default.svg";
 }
 
-// "View All" feed — latest_updates mapped into the NewsUpdate shape the
-// existing PostCard/feed UI consumes, so the /updates page renders live data
-// with no component changes. Engagement counts aren't tracked server-side, so
+// "View All" feed — real-time WHO + Singapore health news mapped into the
+// NewsUpdate shape the existing PostCard/feed UI consumes, so the /updates page
+// renders live data with no component changes. Fetches the same-origin
+// /api/news route (which aggregates RSS server-side); on failure it falls back
+// to the Supabase feed / mock. Engagement counts aren't tracked server-side, so
 // they start at 0 (the updates provider still layers local reposts/comments).
 export async function fetchLatestNews(limit = 30): Promise<NewsUpdate[]> {
-  const updates = await getLatestUpdates(limit);
+  let updates: LatestUpdate[] = [];
+  try {
+    const res = await fetch(`/api/news?limit=${limit}`, { cache: "no-store" });
+    if (res.ok) updates = (await res.json())?.updates ?? [];
+  } catch {
+    /* live feed unreachable — fall back below */
+  }
+  if (updates.length === 0) updates = await getLatestUpdates(limit);
   return updates.map((u) => ({
     id: u.id,
     source: u.sourceName ?? "Gov.sg",

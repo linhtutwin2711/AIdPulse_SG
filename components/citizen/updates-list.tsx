@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { getLatestUpdates, newsImage, timeAgo } from "@/lib/data";
+import { fetchLiveNews } from "@/lib/news-feed";
 import { NewsThumb } from "./news-thumb";
 import type { LatestUpdate } from "@/types";
 
-// Latest Updates (citizen dashboard). Server Component: reads the latest 5 rows
-// from `latest_updates` (populated by the n8n ingest) at request time, newest
-// first. Each row links into the full feed at /updates. Wrapped in <Suspense>
-// by the dashboard page, which supplies the loading skeleton.
+// Latest Updates (citizen dashboard). Server Component: pulls live health news
+// from WHO + Singapore sources (lib/news-feed) at request time, newest first,
+// falling back to the Supabase `latest_updates` feed / mock when the live
+// sources are unreachable. Each row links into the full feed at /updates.
+// Wrapped in <Suspense> by the dashboard page, which supplies the skeleton.
 
 // Card header + chrome shared by the loaded / empty / error states.
 function Shell({ children }: { children: React.ReactNode }) {
@@ -30,9 +32,11 @@ function Shell({ children }: { children: React.ReactNode }) {
 export async function UpdatesList() {
   let updates: LatestUpdate[];
   try {
-    updates = await getLatestUpdates(5);
+    updates = await fetchLiveNews(5);
+    // Live sources unreachable → fall back to the Supabase feed / mock.
+    if (updates.length === 0) updates = await getLatestUpdates(5);
   } catch (err) {
-    console.error("UpdatesList getLatestUpdates failed:", err);
+    console.error("UpdatesList live news failed:", err);
     return (
       <Shell>
         <p className="mt-4 text-sm text-muted-foreground">
