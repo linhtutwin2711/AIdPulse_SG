@@ -40,6 +40,7 @@ import type {
   VolunteerStats,
 } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
+import { findProfileByPhone } from "@/lib/chat";
 
 export const getCaseStats = () => caseStats;
 export const getAreaRanks = () => areaRanks;
@@ -152,6 +153,27 @@ export function findPersonByPhone(input: string): Friend | null {
       return d ? candidates.includes(d) : false;
     }) ?? null
   );
+}
+
+// Canonicalise a raw phone-search value into an E.164 key ("+6581234501"),
+// assuming Singapore (+65) for a bare local number. Returns null if too short.
+export function normalizePhoneSearch(input: string): string | null {
+  const digits = input.replace(/\D/g, "");
+  if (digits.length < 7) return null;
+  return `+${digits.startsWith("65") ? digits : `65${digits}`}`;
+}
+
+// Live WhatsApp-style lookup: exact-match the real Supabase `profiles` table
+// first (a genuinely registered account on another device), then fall back to
+// the mock directory. Exact match only — no partial/LIKE fishing. Async because
+// it may hit the network; findPersonByPhone stays as the synchronous mock path.
+export async function findPersonByPhoneLive(input: string): Promise<Friend | null> {
+  const e164 = normalizePhoneSearch(input);
+  if (e164) {
+    const live = await findProfileByPhone(e164);
+    if (live) return live;
+  }
+  return findPersonByPhone(input);
 }
 
 // A query is treated as a phone search when it's mostly digits (like "+65 8123 4501").

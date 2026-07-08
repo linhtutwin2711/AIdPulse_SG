@@ -7,6 +7,8 @@ import { useProfile } from "@/components/providers/profile-provider";
 import { useRole } from "@/components/providers/role-provider";
 import { analyzeAuthorization, type AuthorizationAnalysis } from "@/lib/authorization-ai";
 import { getHospitals } from "@/lib/data";
+import { phoneKey } from "@/lib/volunteer";
+import { registerOfficerContact } from "@/lib/chat";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +32,7 @@ function highlight(text: string, q: string) {
 export default function OfficerAccessPage() {
   const router = useRouter();
   const { setRole, setOfficerHospitalId } = useRole();
-  const { fullName } = useProfile();
+  const { fullName, initials, profile } = useProfile();
   const hospitals = getHospitals();
   const [step, setStep] = useState<Step>(0);
   const [hospitalId, setHospitalId] = useState(hospitals[0]?.id ?? "");
@@ -311,7 +313,19 @@ export default function OfficerAccessPage() {
             </p>
             <Button
               size="lg"
-              onClick={() => { setOfficerHospitalId(hospitalId); setRole("officer"); router.push("/officer/dashboard"); }}
+              onClick={() => {
+                setOfficerHospitalId(hospitalId);
+                setRole("officer");
+                // Register as this hospital's duty EO so peer officers can find
+                // and message you (chat spec). Fire-and-forget with retry.
+                void registerOfficerContact(
+                  hospitalId,
+                  phoneKey(profile.countryCode, profile.phone),
+                  fullName,
+                  initials,
+                );
+                router.push("/officer/dashboard");
+              }}
               className="mt-2 h-12 w-full bg-gold text-black text-base hover:bg-gold/90"
             >
               Go to Officer Dashboard <ArrowRight className="size-5" />

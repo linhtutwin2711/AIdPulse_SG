@@ -1,16 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Pencil, Send, Trash2, X } from "lucide-react";
 import { useMessages } from "@/components/providers/messages-provider";
 import { cn } from "@/lib/utils";
 
 /** Chat window for a single conversation (the sidebar is the conversation list). */
 export function MessagesPanel({ activeId }: { activeId: string }) {
-  const { getConversation, sendMessage, editMessage, deleteMessage } = useMessages();
+  const { getConversation, openConversation, sendMessage, editMessage, deleteMessage } = useMessages();
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+
+  // Hydrate the real (Supabase) thread history when the conversation opens.
+  useEffect(() => {
+    openConversation(activeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
 
   const active = getConversation(activeId);
 

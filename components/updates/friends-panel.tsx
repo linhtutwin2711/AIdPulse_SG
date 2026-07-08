@@ -16,7 +16,7 @@ import { useFriends } from "@/components/providers/friends-provider";
 import {
   FLYER_PATH,
   buildInviteMessage,
-  findPersonByPhone,
+  findPersonByPhoneLive,
   looksLikePhone,
   whatsappInviteUrl,
 } from "@/lib/data";
@@ -28,14 +28,30 @@ type Tab = "friends" | "discover";
 
 /** Friends hub: your connections + a directory to add new ones. */
 export function FriendsPanel({ onMessage }: { onMessage: (convId: string) => void }) {
-  const { friends, suggestions, isFriend, addFriend, removeFriend } = useFriends();
+  const { friends, suggestions, isFriend, addFriend, addFriendProfile, removeFriend } = useFriends();
   const [tab, setTab] = useState<Tab>("friends");
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
   // Digits → WhatsApp-style exact phone lookup; anything else → name/area filter.
   const phoneSearch = looksLikePhone(query);
-  const phoneMatch = phoneSearch ? findPersonByPhone(query) : null;
+  // Exact-match lookup hits the real Supabase directory first (async), then the
+  // mock. Held in state so a network round-trip doesn't block rendering.
+  const [phoneMatch, setPhoneMatch] = useState<Friend | null>(null);
+  useEffect(() => {
+    if (!phoneSearch) {
+      setPhoneMatch(null);
+      return;
+    }
+    let active = true;
+    findPersonByPhoneLive(query).then((m) => {
+      if (active) setPhoneMatch(m);
+    });
+    return () => {
+      active = false;
+    };
+  }, [query, phoneSearch]);
+
   const filteredSuggestions = q
     ? suggestions.filter((p) => `${p.name} ${p.area ?? ""}`.toLowerCase().includes(q))
     : suggestions;
@@ -121,7 +137,13 @@ export function FriendsPanel({ onMessage }: { onMessage: (convId: string) => voi
                       </IconButton>
                     ) : (
                       <button
-                        onClick={() => addFriend(phoneMatch.id)}
+                        onClick={() =>
+                          // Real accounts (phone id) persist server-side via
+                          // add_friend; mock directory hits keep the old path.
+                          phoneMatch.id.startsWith("+")
+                            ? addFriendProfile(phoneMatch)
+                            : addFriend(phoneMatch.id)
+                        }
                         className="flex items-center gap-1.5 rounded-full bg-gold px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
                       >
                         <UserPlus className="size-3.5" /> Add

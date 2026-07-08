@@ -1,12 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Building2, Plus, Search, Send, UserPlus, Users } from "lucide-react";
 import { officerDirectory } from "@/constants";
 import { getConversations } from "@/lib/data";
+import { useProfile } from "@/components/providers/profile-provider";
+import { phoneKey } from "@/lib/volunteer";
+import {
+  findOfficerByHospital,
+  getThread,
+  sendMessageRpc,
+  subscribeToMessages,
+  type MessageRow,
+  type OfficerContactLive,
+} from "@/lib/chat";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, Conversation, OfficerContact } from "@/types";
+
+const fmtTime = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "now";
+  }
+};
 
 type Filter = "all" | "direct" | "groups" | "unread";
 
@@ -15,6 +33,8 @@ const CONTACTS_KEY = "aidpulse:eo-contacts";
 
 export default function ResponderChatPage() {
   const seed = useMemo(() => getConversations(), []);
+  const { profile, fullName, initials: myInitials } = useProfile();
+  const myPhone = phoneKey(profile.countryCode, profile.phone);
   // Conversations opened by adding a hospital's duty officer.
   const [added, setAdded] = useState<Conversation[]>([]);
   useEffect(() => {
@@ -32,6 +52,9 @@ export default function ResponderChatPage() {
   const [search, setSearch] = useState("");
   const [drafts, setDrafts] = useState<Record<string, ChatMessage[]>>({});
   const [draft, setDraft] = useState("");
+  // Real duty EOs discovered by hospital search (find_officer_by_hospital),
+  // cached per hospital id (null = no live officer, fall back to the mock).
+  const [liveOfficers, setLiveOfficers] = useState<Record<string, OfficerContactLive | null>>({});
 
   const active = conversations.find((c) => c.id === activeId) ?? seed[0];
   const messages = [...active.messages, ...(drafts[activeId] ?? [])];
@@ -47,15 +70,49 @@ export default function ResponderChatPage() {
 
   // Hospital search: each hospital has exactly one duty EO — find them by the
   // hospital's name (the officer-side equivalent of finding a friend by phone).
-  const directoryMatches: OfficerContact[] = q
+  const rawMatches = q
     ? officerDirectory
         .filter(
-          (o) =>
-            !conversations.some((c) => c.id === o.id) &&
-            (o.hospitalName.toLowerCase().includes(q) || o.name.toLowerCase().includes(q))
+          (o) => o.hospitalName.toLowerCase().includes(q) || o.name.toLowerCase().includes(q),
         )
         .slice(0, 5)
     : [];
+  const rawMatchesKey = rawMatches.map((o) => o.hospitalId).join(",");
+
+  // Look up the REAL registered duty EO for each matched hospital; a live hit
+  // overrides the mock officer (real name + phone, so chat is genuine).
+  useEffect(() => {
+    const ids = rawMatches.map((o) => o.hospitalId).filter((id) => !(id in liveOfficers));
+    if (!ids.length) return;
+    let alive = true;
+    Promise.all(ids.map((id) => findOfficerByHospital(id).then((r) => [id, r] as const))).then(
+      (entries) => {
+        if (!alive) return;
+        setLiveOfficers((prev) => {
+          const next = { ...prev };
+          for (const [id, r] of entries) next[id] = r;
+          return next;
+        });
+      },
+    );
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawMatchesKey]);
+
+  // Present the live EO when one is registered, else the mock duty officer. A
+  // live contact is keyed by the officer's phone so messaging routes for real.
+  const resolve = (o: OfficerContact): OfficerContact => {
+    const live = liveOfficers[o.hospitalId];
+    if (live && live.phone !== myPhone) {
+      return { ...o, id: live.phone, name: live.name, initials: live.initials, online: live.online };
+    }
+    return o;
+  };
+  const directoryMatches: OfficerContact[] = rawMatches
+    .map(resolve)
+    .filter((o) => !conversations.some((c) => c.id === o.id));
 
   const addContact = (o: OfficerContact) => {
     const conv: Conversation = {
@@ -78,15 +135,85 @@ export default function ResponderChatPage() {
     setSearch("");
   };
 
+  // Live delivery: subscribe once to messages addressed to me and append each to
+  // the sender's thread (opening a bare thread if they messaged first).
+  const addedRef = useRef(added);
+  addedRef.current = added;
+  useEffect(() => {
+    if (!myPhone) return;
+    const unsub = subscribeToMessages(myPhone, (row: MessageRow) => {
+      const from = row.sender_phone;
+      // Ensure a conversation exists for an unknown sender.
+      if (!addedRef.current.some((c) => c.id === from) && !seed.some((c) => c.id === from)) {
+        const conv: Conversation = {
+          id: from,
+          name: from,
+          kind: "direct",
+          online: true,
+          lastMessage: "Secure line",
+          lastTime: "now",
+          messages: [],
+        };
+        const next = [conv, ...addedRef.current];
+        setAdded(next);
+        try {
+          window.localStorage.setItem(CONTACTS_KEY, JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+      }
+      setDrafts((prev) => {
+        const cur = prev[from] ?? [];
+        if (cur.some((m) => m.id === row.id)) return prev;
+        return {
+          ...prev,
+          [from]: [
+            ...cur,
+            { id: row.id, author: from, initials: from.slice(-2), text: row.body, time: fmtTime(row.created_at), self: false },
+          ],
+        };
+      });
+    });
+    return unsub;
+  }, [myPhone, seed]);
+
+  // Hydrate a real thread's history from Supabase when it's opened.
+  const peerName = active.name;
+  useEffect(() => {
+    if (!myPhone || !activeId.startsWith("+")) return;
+    let alive = true;
+    getThread(myPhone, activeId).then((rows) => {
+      if (!alive || !rows.length) return;
+      setDrafts((prev) => ({
+        ...prev,
+        [activeId]: rows.map((r) => ({
+          id: r.id,
+          author: r.sender_phone === myPhone ? "You" : peerName,
+          initials: r.sender_phone === myPhone ? myInitials : activeId.slice(-2),
+          text: r.body,
+          time: fmtTime(r.created_at),
+          self: r.sender_phone === myPhone,
+        })),
+      }));
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, myPhone]);
+
   const send = () => {
     if (!draft.trim()) return;
+    const text = draft.trim();
     setDrafts((prev) => ({
       ...prev,
       [activeId]: [
         ...(prev[activeId] ?? []),
-        { id: `d${Date.now()}`, author: "John Lim (You)", initials: "JL", text: draft.trim(), time: "now", self: true },
+        { id: `d${Date.now()}`, author: `${fullName} (You)`, initials: myInitials, text, time: "now", self: true },
       ],
     }));
+    // Real (phone-keyed) threads persist + deliver to the other device.
+    if (myPhone && activeId.startsWith("+")) void sendMessageRpc(myPhone, activeId, text);
     setDraft("");
   };
 
