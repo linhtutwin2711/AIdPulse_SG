@@ -205,13 +205,19 @@ export async function getThread(
  * one, live. Returns an unsubscribe function. No-op (returns a noop) without a
  * phone or Supabase.
  */
+let channelSeq = 0;
+
 export function subscribeToMessages(
   myPhone: string | null,
   onInsert: (row: MessageRow) => void,
 ): () => void {
   if (!myPhone || !isSupabaseConfigured) return () => {};
+  // Unique topic per subscription: supabase.channel() returns the SAME instance
+  // for a repeated name, so React's dev double-mount would otherwise try to add
+  // callbacks to an already-subscribed channel and crash. The postgres_changes
+  // filter (not the topic) is what routes the messages.
   const channel = supabase
-    .channel(`msgs-${myPhone}`)
+    .channel(`msgs-${myPhone}-${++channelSeq}-${Date.now().toString(36)}`)
     .on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "messages", filter: `recipient_phone=eq.${myPhone}` },
