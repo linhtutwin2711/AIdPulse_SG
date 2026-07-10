@@ -22,8 +22,8 @@
         "sendTo": "={{ $json.body.email }}",
         "subject": "Your AidPulse SG verification code",
         "emailType": "text",
-        "message": "=Hi,\n\nYour AidPulse SG verification code is: {{ $json.body.code }}\n\nIt expires in 10 minutes. If you didn't request this, you can ignore this email.\n\n— AidPulse SG · One App. Faster Response.",
-        "options": { "senderName": "AidPulse SG" }
+        "message": "=Hi,\n\nYour AidPulse SG verification code is: {{ $json.body.code }}\n\nIt expires in 10 minutes. If you didn't request this, you can ignore this email.",
+        "options": { "senderName": "AidPulse SG", "appendAttribution": false }
       },
       "id": "22222222-2222-2222-2222-222222222222",
       "name": "Send Email",
