@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Ban, ChevronDown, HeartPulse } from "lucide-react";
 import { OfficerNav } from "@/components/officer/officer-nav";
 import { volunteerRoster } from "@/constants";
+import { fetchAllVolunteers } from "@/lib/volunteer";
 import { useMissions } from "@/components/providers/missions-provider";
 import { ImpactStats } from "@/components/volunteer/impact-stats";
 import {
@@ -48,6 +49,18 @@ function CancellationCard({ c }: { c: MissionCancellation }) {
 export default function OfficerVolunteersPage() {
   const { missions, markCancellationsSeen } = useMissions();
   const [selected, setSelected] = useState<VolunteerProfile | null>(null);
+  // Real registered volunteers from Supabase (volunteer_profiles). Shown above
+  // the mock roster; empty without Supabase so the demo roster still renders.
+  const [registered, setRegistered] = useState<VolunteerProfile[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetchAllVolunteers().then((v) => {
+      if (active) setRegistered(v);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Live cancellations from this browser's volunteer activity. The signed-in
   // person is an EO here (not a volunteer), so they are NOT listed themselves —
@@ -59,16 +72,25 @@ export default function OfficerVolunteersPage() {
   // New (unacknowledged) cancellations drive the red dot + review banner.
   const unseenCount = missions.filter((m) => m.status === "cancelled" && m.cancelSeen === false).length;
 
-  const roster: VolunteerProfile[] = volunteerRoster.map((v, i) =>
+  const mockRoster: VolunteerProfile[] = volunteerRoster.map((v, i) =>
     i === 0 && liveCancellations.length > 0
       ? { ...v, cancellations: [...liveCancellations, ...(v.cancellations ?? [])] }
       : v
   );
+  // Real registered volunteers first, then the demo roster (minus any whose
+  // name a real registration already covers).
+  const regNames = new Set(registered.map((r) => r.name.toLowerCase()));
+  const roster: VolunteerProfile[] = [
+    ...registered,
+    ...mockRoster.filter((m) => !regNames.has(m.name.toLowerCase())),
+  ];
+  // The mock entry carrying the live cancellations drives the red review dot.
+  const flaggedId = liveCancellations.length > 0 ? mockRoster[0]?.id : undefined;
 
   // Opening the flagged volunteer's profile acknowledges the new cancellations.
   const openProfile = (v: VolunteerProfile) => {
     setSelected(v);
-    if (v.id === roster[0].id) markCancellationsSeen();
+    if (v.id === flaggedId) markCancellationsSeen();
   };
 
   return (
@@ -93,9 +115,9 @@ export default function OfficerVolunteersPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {roster.map((v, i) => {
+        {roster.map((v) => {
           const cancelCount = v.cancellations?.length ?? 0;
-          const showDot = i === 0 && unseenCount > 0;
+          const showDot = v.id === flaggedId && unseenCount > 0;
           return (
             <button
               key={v.id}
