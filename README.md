@@ -1,3 +1,11 @@
+# AidPulse SG
+
+**Live demo:** https://aidpulsesg.vercel.app
+
+One app for real-time health & emergency response in Singapore — live case tracking, hospital bed availability, an AI health assistant, and volunteer & officer coordination.
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
