@@ -36,6 +36,25 @@ export default function LandingPage() {
 
   const [mode, setMode] = useState<AuthMode>("signup");
   const [stage, setStage] = useState<Stage>("phone");
+  // The auth card stays hidden until the visitor asks for it — the marketing
+  // page reads freely; "Get Started" (or header "Log In") reveals the card.
+  const [showAuth, setShowAuth] = useState(false);
+
+  useEffect(() => {
+    if (showAuth) {
+      // wait one frame so the card exists before scrolling to it
+      requestAnimationFrame(() =>
+        document.getElementById("get-started")?.scrollIntoView({ behavior: "smooth", block: "center" })
+      );
+    }
+  }, [showAuth]);
+
+  const openAuth = (m: AuthMode) => {
+    setMode(m);
+    setStage("phone");
+    setError("");
+    setShowAuth(true);
+  };
 
   const [iso, setIso] = useState(defaultCountry.iso);
   const [phone, setPhone] = useState("");
@@ -104,11 +123,23 @@ export default function LandingPage() {
     <div className="relative flex min-h-dvh flex-col">
       <div className="glow-danger pointer-events-none absolute inset-x-0 top-0 h-[420px]" />
 
-      <header className="relative z-10 px-8 py-6">
+      <header className="relative z-10 flex items-center justify-between px-8 py-6">
         <Logo />
+        <button
+          type="button"
+          onClick={() => openAuth("login")}
+          className="rounded-full border border-border bg-card/60 px-5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Log In
+        </button>
       </header>
 
-      <main className="relative z-10 mx-auto grid w-full max-w-[1400px] flex-1 items-center gap-12 px-8 pb-16 lg:grid-cols-[1.3fr_1fr]">
+      <main
+        className={cn(
+          "relative z-10 mx-auto grid w-full max-w-[1400px] flex-1 items-center gap-12 px-8 pb-16",
+          showAuth && "lg:grid-cols-[1.3fr_1fr]"
+        )}
+      >
         {/* Hero */}
         <section>
           <p className="inline-flex items-center gap-2 rounded-full border border-danger/30 bg-danger/10 px-3 py-1 text-xs font-medium text-danger">
@@ -128,7 +159,7 @@ export default function LandingPage() {
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <Button
               size="lg"
-              onClick={() => document.getElementById("get-started")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+              onClick={() => openAuth("signup")}
               className="h-12 px-7 text-base"
             >
               Get Started — it&apos;s free
@@ -151,7 +182,8 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Auth card */}
+        {/* Auth card — revealed by "Get Started" / "Log In" */}
+        {showAuth && (
         <section id="get-started" className="surface w-full max-w-md justify-self-end p-8">
           {/* Mode toggle — only on the first step */}
           {stage === "phone" && (
@@ -330,6 +362,7 @@ export default function LandingPage() {
             </form>
           )}
         </section>
+        )}
       </main>
 
       {/* How it works */}
