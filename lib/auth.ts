@@ -1,14 +1,18 @@
 // Phone-OTP auth seam. The UI (app/page.tsx) calls these; the bodies talk to
 // our server routes (app/api/otp/*), which call Twilio Verify. The code is
 // generated, stored and checked by Twilio server-side — it never reaches the
-// browser. Add TWILIO_* keys to .env.local to enable real SMS; until then the
-// /api/otp routes return a clear "not configured" error and the UI shows it.
+// browser. If the TWILIO_* keys are missing (503) or the network is down, the
+// flow falls back to the on-screen demo code so the app always works.
 
 export type AuthMode = "signup" | "login";
-export type AuthResult = { ok: boolean; error?: string };
+export type AuthResult = { ok: boolean; error?: string; demo?: boolean };
 
 const DEMO_OTP = "123456";
 const digits = (s: string) => s.replace(/\D/g, "");
+
+// Whether the current OTP round is running on the demo code (no SMS went out).
+// Set by requestOtp, read by verifyOtp — one sign-in flow runs at a time.
+let demoMode = true;
 
 // Normalize a display number ("+65 9123 4567") to E.164 ("+6591234567").
 function toE164(phone: string): string {
@@ -16,12 +20,6 @@ function toE164(phone: string): string {
   return (hasPlus ? "+" : "") + digits(phone);
 }
 
-/**
- * Demo OTP flow.
- *
- * This app is running in demo mode, so we do not send real SMS messages.
- * The expected code is hard-coded and shown to the user in the UI.
- */
 export async function requestOtp(phone: string): Promise<AuthResult> {
   if (digits(phone).length < 7) {
     return { ok: false, error: "Enter a valid phone number." };
@@ -32,7 +30,33 @@ export async function requestOtp(phone: string): Promise<AuthResult> {
     return { ok: false, error: "Enter a valid phone number." };
   }
 
-  return { ok: true };
+  try {
+    const res = await fetch("/api/otp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: normalized }),
+    });
+
+    if (res.ok) {
+      // Real SMS is on its way via Twilio.
+      demoMode = false;
+      return { ok: true, demo: false };
+    }
+
+    if (res.status === 503) {
+      // Twilio not configured — demo path, code shown in the UI.
+      demoMode = true;
+      return { ok: true, demo: true };
+    }
+
+    // 400 bad number / 429 rate-limited / 502 Twilio error — surface it.
+    const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: error ?? "Couldn't send the code. Please try again." };
+  } catch {
+    // Network failure (offline dev) — demo path keeps the app usable.
+    demoMode = true;
+    return { ok: true, demo: true };
+  }
 }
 
 export async function verifyOtp(phone: string, code: string): Promise<AuthResult> {
@@ -40,9 +64,25 @@ export async function verifyOtp(phone: string, code: string): Promise<AuthResult
     return { ok: false, error: "Enter the 6-digit code." };
   }
 
-  if (code !== DEMO_OTP) {
-    return { ok: false, error: "Invalid code. For demo, enter 123456." };
+  if (demoMode) {
+    if (code !== DEMO_OTP) {
+      return { ok: false, error: "Invalid code. For demo, enter 123456." };
+    }
+    return { ok: true };
   }
 
-  return { ok: true };
+  try {
+    const res = await fetch("/api/otp/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: toE164(phone), code }),
+    });
+
+    if (res.ok) return { ok: true };
+
+    const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: error ?? "Incorrect or expired code." };
+  } catch {
+    return { ok: false, error: "Couldn't verify the code. Please try again." };
+  }
 }

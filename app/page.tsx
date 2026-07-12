@@ -66,6 +66,9 @@ export default function LandingPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState(0);
+  // True when no real SMS went out (Twilio unconfigured/unreachable) — the UI
+  // then shows the on-screen demo code instead of "check your phone".
+  const [demoOtp, setDemoOtp] = useState(true);
 
   const country = countries.find((c) => c.iso === iso) ?? defaultCountry;
   const fullPhone = `${country.dial} ${phone}`.trim();
@@ -80,9 +83,10 @@ export default function LandingPage() {
   const sendCode = async () => {
     setError("");
     setBusy(true);
-    const { ok, error } = await requestOtp(country.dial + phone);
+    const { ok, error, demo } = await requestOtp(country.dial + phone);
     setBusy(false);
     if (!ok) return setError(error ?? "Enter a valid phone number.");
+    setDemoOtp(!!demo);
     setStage("otp");
     setCode("");
     setCountdown(RESEND_SECONDS);
@@ -245,7 +249,7 @@ export default function LandingPage() {
                   Choose your country — works internationally.
                 </p>
                 <p className="mt-2 text-xs text-info">
-                  Demo mode: no SMS is sent. Use code <span className="font-semibold">123456</span> on the next screen.
+                  We&apos;ll text a one-time code to this number to verify it.
                 </p>
               </div>
 
@@ -273,9 +277,11 @@ export default function LandingPage() {
                   Enter the 6-digit code we sent to{" "}
                   <span className="font-medium text-foreground">{fullPhone || "—"}</span>
                 </p>
-                <p className="mt-2 text-sm text-info">
-                  Demo code: <span className="font-semibold">123456</span>. No real SMS is sent.
-                </p>
+                {demoOtp && (
+                  <p className="mt-2 text-sm text-info">
+                    Demo code: <span className="font-semibold">123456</span>. No real SMS is sent.
+                  </p>
+                )}
               </div>
 
               <OtpInput value={code} onChange={setCode} />
@@ -307,7 +313,11 @@ export default function LandingPage() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Demo mode: no SMS is sent. Use <span className="font-semibold">123456</span> to continue.
+                {demoOtp ? (
+                  <>Demo mode: no SMS is sent. Use <span className="font-semibold">123456</span> to continue.</>
+                ) : (
+                  <>Didn&apos;t get it? You can resend once the timer runs out.</>
+                )}
               </p>
             </div>
           )}
