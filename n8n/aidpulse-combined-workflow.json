@@ -1,0 +1,1017 @@
+{
+  "name": "AidPulse SG — All Workflows (combined)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Chatbot\nAidPulse Chatbot (Gemini Flash)",
+        "height": 120,
+        "width": 320,
+        "color": 5
+      },
+      "id": "8ab7dafa-00f1-4a97-b671-efb22ec73d25",
+      "name": "— Chatbot —",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aidpulse-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ad8c6121-2300-4c5f-a9ed-f37f4e7ba6ae",
+      "name": "Webhook · Chatbot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "aidpulse-chat"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "You are AidPulse's assistant for Singapore. You help citizens with health guidance, finding nearby hospitals and emergency services, and clear safety steps during emergencies. Be calm, concise, and practical. If a situation sounds life-threatening, tell the user to call 995 (SCDF ambulance) immediately. You are not a substitute for a doctor or emergency services."
+        }
+      },
+      "id": "697bdccb-7263-413d-9c73-7e52148f3855",
+      "name": "AI Agent · Chatbot",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "f409abc7-1c90-456c-b79d-4c81fd3c20c2",
+      "name": "Google Gemini Chat Model · Chatbot",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        300,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "c26ae323-b832-48c7-b552-16f41e92c881",
+      "name": "Simple Memory · Chatbot",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        540,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"reply\": $json.output } }}",
+        "options": {}
+      },
+      "id": "d64a8231-e3f2-40c6-96a0-d04e553cb838",
+      "name": "Respond to Webhook · Chatbot",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Email OTP\nAidPulse — Email OTP (Gmail)",
+        "height": 120,
+        "width": 320,
+        "color": 4
+      },
+      "id": "98f79928-a983-4ba9-9a11-7cf85e020a87",
+      "name": "— Email OTP —",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aidpulse-email-otp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "94140866-499e-491f-832f-7eb7753d6190",
+      "name": "Webhook · Email OTP",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1300
+      ],
+      "webhookId": "aidpulse-email-otp"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "Your AidPulse SG verification code",
+        "emailType": "text",
+        "message": "=Hi,\n\nYour AidPulse SG verification code is: {{ $json.body.code }}\n\nIt expires in 10 minutes. If you didn't request this, you can ignore this email.",
+        "options": {
+          "senderName": "AidPulse SG",
+          "appendAttribution": false
+        }
+      },
+      "id": "c9bf6b17-6b24-46e2-b1eb-2b996d180d39",
+      "name": "Send Email · Email OTP",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        280,
+        1300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_GMAIL_CREDENTIAL",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true } }}",
+        "options": {}
+      },
+      "id": "ce06b095-9f05-45c5-88cb-b1a6c121ac5a",
+      "name": "Respond to Webhook · Email OTP",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        1300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Certificate AI\nAidPulse — Certificate Analyze (Gemini Vision)",
+        "height": 120,
+        "width": 320,
+        "color": 6
+      },
+      "id": "bad4bd91-77c2-4d1d-80dc-0b7d1fd2deec",
+      "name": "— Certificate AI —",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        1800
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aidpulse-certificate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "dd1ffa54-5aaa-4cef-a244-cfeb688011b1",
+      "name": "Webhook · Certificate AI",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        2300
+      ],
+      "webhookId": "aidpulse-certificate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Gemini generateContent request from the payload the Next.js route\n// sends: { fileName, mimeType, data (base64), hints }. We force STRUCTURED JSON\n// output (responseSchema) so the reply is always { certification, skills,\n// confidence } — exactly what app/api/certificate/analyze/route.ts expects.\nconst b = $json.body || $json;\nconst fileName = String(b.fileName || 'certificate');\nconst mimeType = String(b.mimeType || 'application/pdf');\nconst data = String(b.data || '');\nconst hints = String(b.hints || '').slice(0, 500);\n\n// The ONLY skills the app's matcher understands (lib/certificate-ai.ts +\n// opportunity roleType/skills). Gemini must pick from this exact vocabulary.\nconst SKILLS = [\n  'First Aid', 'Healthcare Support', 'Hospital Role', 'Counselling',\n  'Logistics', 'Logistics Support', 'Teaching', 'Food Handling',\n  'Translation', 'Crowd Management', 'General Volunteer'\n];\n\nif (!data) { throw new Error('No certificate data in payload'); }\n\nconst prompt = [\n  'You are analysing a volunteer\\u2019s certificate for AidPulse SG, a Singapore',\n  'health/disaster volunteering app. Read the attached document.',\n  'Filename: \"' + fileName + '\". User hints: \"' + hints + '\".',\n  '',\n  'Return JSON with exactly these fields:',\n  '- \"certification\": the official name of what this document certifies',\n  '  (e.g. \"Standard First Aid + CPR/AED\"). If unclear, use \"General certificate\".',\n  '- \"skills\": an array chosen ONLY from this exact list: ' + JSON.stringify(SKILLS) + '.',\n  '  Include every skill the certificate genuinely supports. If none clearly',\n  '  apply, return [\"General Volunteer\"].',\n  '- \"confidence\": a number from 0 to 1 for how sure you are.'\n].join('\\n');\n\nconst body = {\n  contents: [{\n    parts: [\n      { text: prompt },\n      { inline_data: { mime_type: mimeType, data: data } }\n    ]\n  }],\n  generationConfig: {\n    temperature: 0.1,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      properties: {\n        certification: { type: 'STRING' },\n        skills: { type: 'ARRAY', items: { type: 'STRING' } },\n        confidence: { type: 'NUMBER' }\n      },\n      required: ['certification', 'skills', 'confidence']\n    }\n  }\n};\n\nreturn [{ json: { geminiBody: JSON.stringify(body) } }];"
+      },
+      "id": "9ebe5899-46ec-43ff-8ee1-2fa9300fef01",
+      "name": "Build Gemini request · Certificate AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=<GEMINI_API_KEY>",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.geminiBody }}",
+        "options": {}
+      },
+      "id": "7f0d0365-f1b0-4137-9599-bd66c4d4da7a",
+      "name": "Gemini Vision · Certificate AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gemini returns { candidates: [{ content: { parts: [{ text: '<json>' }] }}]}.\n// Extract the JSON text, validate it, and normalise to the exact shape the\n// Next.js route returns to the browser: { certification, skills, confidence }.\nconst SKILLS = [\n  'First Aid', 'Healthcare Support', 'Hospital Role', 'Counselling',\n  'Logistics', 'Logistics Support', 'Teaching', 'Food Handling',\n  'Translation', 'Crowd Management', 'General Volunteer'\n];\nconst allow = new Map(SKILLS.map((s) => [s.toLowerCase(), s]));\n\nlet text = '';\ntry {\n  const parts = $json.candidates[0].content.parts || [];\n  text = parts.map((p) => p.text || '').join('');\n} catch (e) { text = ''; }\n\nlet out = { certification: 'General certificate', skills: ['General Volunteer'], confidence: 0.4 };\ntry {\n  const parsed = JSON.parse(text);\n  // Keep only recognised skills (case-insensitive), canonicalised to app casing.\n  const skills = Array.isArray(parsed.skills)\n    ? [...new Set(parsed.skills.map((s) => allow.get(String(s).toLowerCase())).filter(Boolean))]\n    : [];\n  out = {\n    certification: String(parsed.certification || 'General certificate').slice(0, 120),\n    skills: skills.length ? skills : ['General Volunteer'],\n    confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0.5))\n  };\n} catch (e) { /* keep the safe default */ }\n\nreturn [{ json: out }];"
+      },
+      "id": "0c938254-62fa-4a07-ac51-0b227156509d",
+      "name": "Parse + normalise · Certificate AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"certification\": $json.certification, \"skills\": $json.skills, \"confidence\": $json.confidence } }}",
+        "options": {}
+      },
+      "id": "5e02b2eb-4e17-4422-b960-a0f352dd6e49",
+      "name": "Respond to Webhook · Certificate AI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Cases Ingest\nAidPulse — Track Cases ingest (NEA dengue clusters)",
+        "height": 120,
+        "width": 320,
+        "color": 3
+      },
+      "id": "0b35ca2a-bcd5-4787-8695-8f628525cc6a",
+      "name": "— Cases Ingest —",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        2800
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "5c373b1e-666f-4283-81bb-563006747113",
+      "name": "Every 6 hours · Cases Ingest",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        3220
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api-open.data.gov.sg/v1/public/api/datasets/d_dbfabf16158d1b0e1c420627c0819168/poll-download",
+        "options": {}
+      },
+      "id": "a55e5bb2-1e14-487f-95c5-89a0ba3df496",
+      "name": "Poll NEA dengue dataset · Cases Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        3220
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "b098080e-17cf-431c-a39d-500b62ee873e",
+      "name": "Download GeoJSON · Cases Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        3220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// data.gov.sg NEA Dengue Clusters (GeoJSON) -> case_clusters rows.\n// Each cluster: LOCALITY -> area, CASE_SIZE -> active_cases, polygon centroid\n// -> lat/lng, OBJECTID -> stable source_id (upsert key). The biggest cluster\n// is flagged as the dashboard banner.\nlet raw = $input.first().json;\nlet gj = raw;\nif (typeof raw === 'string') gj = JSON.parse(raw);\nelse if (raw && typeof raw.data === 'string') gj = JSON.parse(raw.data);\nelse if (raw && typeof raw.body === 'string') gj = JSON.parse(raw.body);\nelse if (raw && raw.body) gj = raw.body;\nfunction centroid(geom){\n  if(!geom) return [null,null];\n  let ring = geom.type==='Polygon' ? geom.coordinates[0]\n           : geom.type==='MultiPolygon' ? geom.coordinates[0][0] : null;\n  if(!ring || !ring.length) return [null,null];\n  let sx=0, sy=0; for(const p of ring){ sx+=p[0]; sy+=p[1]; }\n  return [sy/ring.length, sx/ring.length]; // lat, lng\n}\nfunction titleCase(s){ return s.replace(/\\b\\w/g, c => c.toUpperCase()); }\nconst rows = [];\nfor (const f of (gj.features || [])) {\n  const p = f.properties || {};\n  const loc = (p.LOCALITY || '').trim();\n  let cases = parseInt(p.CASE_SIZE, 10); if (isNaN(cases)) cases = 0;\n  const [lat, lng] = centroid(f.geometry);\n  if (!loc || lat === null) continue;\n  const name = titleCase(loc);\n  const risk = cases >= 50 ? 'critical' : cases >= 10 ? 'high' : 'medium';\n  rows.push({\n    disease: 'dengue',\n    title: 'Dengue cluster at ' + name,\n    description: cases + ' active dengue case(s) reported by NEA at ' + name + '.',\n    area_name: name,\n    latitude: Math.round(lat * 1e6) / 1e6,\n    longitude: Math.round(lng * 1e6) / 1e6,\n    active_cases: cases,\n    critical_cases: cases >= 10 ? cases : 0,\n    risk_level: risk,\n    is_banner: false,\n    source_id: 'nea-dengue-' + p.OBJECTID\n  });\n}\nif (rows.length) {\n  let ti = 0;\n  for (let i = 1; i < rows.length; i++) if (rows[i].active_cases > rows[ti].active_cases) ti = i;\n  rows[ti].is_banner = true;\n}\nreturn [{ json: { rows } }];"
+      },
+      "id": "ee071f0e-f685-4bec-bfe9-0f2524c6fc6b",
+      "name": "Build case_clusters rows · Cases Ingest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        3220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/case_clusters?source_id=like.nea-dengue-%25",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "<SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f8ee8f6c-4270-4f62-a85d-da158ac6bcb6",
+      "name": "Clear old dengue clusters · Cases Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        3220
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/case_clusters?on_conflict=source_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "<SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build case_clusters rows').item.json.rows) }}",
+        "options": {}
+      },
+      "id": "cc903fd5-b00c-4d32-ae50-12b89ffab39c",
+      "name": "Upsert to Supabase · Cases Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        3220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Record today's totals so the dashboard can show a real day-over-day delta.\n// Yesterday's snapshot stays frozen; today's is refreshed on every run.\nconst rows = ($('Build case_clusters rows').item.json.rows) || [];\nlet a = 0, c = 0;\nfor (const r of rows) { a += r.active_cases || 0; c += r.critical_cases || 0; }\nconst d = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });\nreturn [{ json: { snapshot_date: d, active_cases: a, critical_cases: c } }];"
+      },
+      "id": "0c2017af-5a40-4972-aef4-d766d4520c24",
+      "name": "Build daily snapshot · Cases Ingest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        3220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/case_stats_snapshots?on_conflict=snapshot_date",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "<SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([$json]) }}",
+        "options": {}
+      },
+      "id": "0ad7216b-1dfc-4d2b-b2e1-4de86029e028",
+      "name": "Upsert daily snapshot · Cases Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        3220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## News Ingest\nAidPulse — Latest Updates ingest (latest_updates)",
+        "height": 120,
+        "width": 320,
+        "color": 7
+      },
+      "id": "2ed43101-5f04-4a37-8f0c-fff712da946d",
+      "name": "— News Ingest —",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        3800
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "ace3bb37-eafc-4365-8713-3e4631c06d04",
+      "name": "Every 15 min · News Ingest",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        4200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Trusted, public health / pandemic RSS sources (real article URLs + real\n// article photos via og:image). Add more health feeds freely.\nreturn [\n  { json: { url: 'https://www.who.int/rss-feeds/news-english.xml' } },\n  { json: { url: 'https://news.un.org/feed/subscribe/en/news/topic/health/feed/rss.xml' } }\n];"
+      },
+      "id": "4cd49e75-9525-468d-bc69-3a6d523ccce3",
+      "name": "Health sources · News Ingest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        4200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "b42ee21c-fea7-45ac-94a4-fb6dd73210e9",
+      "name": "Read feed · News Ingest",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        4200
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize + enrich: for each article fetch its page and read og:image so the\n// card shows the real photo. source_name is derived from the link domain.\n// Only items with a real photo are kept. Runs once for all items (async).\nfunction srcOf(link){\n  if (link.includes('who.int')) return 'World Health Organization';\n  if (link.includes('news.un.org')) return 'UN News';\n  if (link.includes('cdc.gov')) return 'US CDC';\n  if (link.includes('channelnewsasia')) return 'CNA';\n  if (link.includes('straitstimes')) return 'The Straits Times';\n  try { return new URL(link).hostname.replace(/^www\\./, ''); } catch (e) { return 'Health News'; }\n}\nfunction safeISO(v){ const t = v ? Date.parse(v) : NaN; return Number.isNaN(t) ? null : new Date(t).toISOString(); }\nconst rows = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const link = j.link || j.guid;\n  const title = (j.title || '').trim();\n  if (!link || !title) continue;\n  let image = null;\n  try {\n    const html = await this.helpers.httpRequest({ url: link, headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 12000 });\n    const m = String(html).match(/property=[\"']og:image[\"'][^>]+content=[\"']([^\"']+)/i)\n          || String(html).match(/name=[\"']twitter:image[\"'][^>]+content=[\"']([^\"']+)/i);\n    if (m) image = m[1];\n  } catch (e) {}\n  if (!image) continue; // keep only items with a real photo\n  rows.push({\n    title: title.slice(0, 300),\n    summary: (j.contentSnippet || j.summary || '').replace(/<[^>]+>/g, '').trim().slice(0, 300) || null,\n    source_name: srcOf(link),\n    source_url: link,\n    category: 'Public Health',\n    location: 'Global',\n    severity: null,\n    image_url: image,\n    published_at: safeISO(j.isoDate || j.pubDate)\n  });\n}\nreturn rows.map((r) => ({ json: r }));"
+      },
+      "id": "bb72a164-1109-4a14-8b6c-8f1ac40565fa",
+      "name": "Normalize + og:image · News Ingest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        4200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// De-dupe by source_url and emit a single array so the upsert is one request.\nconst seen = new Set();\nconst rows = [];\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (!r || !r.source_url || seen.has(r.source_url)) continue;\n  seen.add(r.source_url);\n  rows.push(r);\n}\nreturn [{ json: { rows: rows.slice(0, 15) } }];"
+      },
+      "id": "3dc8dffd-9014-4ac9-b641-f17a89a8f3ad",
+      "name": "Collect rows · News Ingest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        4200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/latest_updates?on_conflict=source_url",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "<SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "b4d6533a-14ba-49b4-b4b8-1c001f4e948b",
+      "name": "Upsert to Supabase · News Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        4200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## News (legacy)\nAidPulse — Latest News ingest",
+        "height": 120,
+        "width": 320,
+        "color": 2
+      },
+      "id": "9ef6f67f-0d66-4039-abaa-fa67091e7d2b",
+      "name": "— News (legacy) —",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        4800
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "91b9a431-ae8f-4d48-8851-ebd22f2b8449",
+      "name": "Every hour · News (legacy)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        5000
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://newsdata.io/api/1/news",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "<NEWSDATA_API_KEY>"
+            },
+            {
+              "name": "country",
+              "value": "sg"
+            },
+            {
+              "name": "category",
+              "value": "health"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6f596d55-4f39-464e-87f9-c08671445eb4",
+      "name": "NewsData.io (SG health) · News (legacy)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        5000
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map NewsData.io articles -> news_updates rows. source_url (UNIQUE) dedupes.\nconst res = $input.first().json;\nconst articles = res.results || [];\nconst rows = articles\n  .filter(a => a && a.link && a.title)\n  .map(a => ({\n    title: a.title,\n    summary: a.description || null,\n    image_url: a.image_url || null,\n    source_url: a.link,\n    category: Array.isArray(a.category) ? a.category[0] : (a.category || null),\n    // NewsData pubDate looks like \"2026-06-10 09:30:00\" (UTC) -> ISO timestamptz\n    published_at: a.pubDate ? a.pubDate.replace(' ', 'T') + 'Z' : null,\n    status: 'published',\n    is_live: false,\n  }));\nreturn [{ json: { rows } }];"
+      },
+      "id": "7824b22d-2e28-4582-81f3-ef5325c526ea",
+      "name": "Map -> news_updates rows · News (legacy)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        5000
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pjwzvugfzynzvwthqcxi.supabase.co/rest/v1/news_updates?on_conflict=source_url",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "<SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer <SUPABASE_SERVICE_ROLE_KEY>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "0c274609-c903-4c6c-8f1d-3cc3ae926978",
+      "name": "Upsert to Supabase · News (legacy)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        5000
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook · Chatbot": {
+      "main": [
+        [
+          {
+            "node": "AI Agent · Chatbot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model · Chatbot": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent · Chatbot",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory · Chatbot": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent · Chatbot",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent · Chatbot": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook · Chatbot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook · Email OTP": {
+      "main": [
+        [
+          {
+            "node": "Send Email · Email OTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email · Email OTP": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook · Email OTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook · Certificate AI": {
+      "main": [
+        [
+          {
+            "node": "Build Gemini request · Certificate AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gemini request · Certificate AI": {
+      "main": [
+        [
+          {
+            "node": "Gemini Vision · Certificate AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Vision · Certificate AI": {
+      "main": [
+        [
+          {
+            "node": "Parse + normalise · Certificate AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + normalise · Certificate AI": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook · Certificate AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 6 hours · Cases Ingest": {
+      "main": [
+        [
+          {
+            "node": "Poll NEA dengue dataset · Cases Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll NEA dengue dataset · Cases Ingest": {
+      "main": [
+        [
+          {
+            "node": "Download GeoJSON · Cases Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download GeoJSON · Cases Ingest": {
+      "main": [
+        [
+          {
+            "node": "Build case_clusters rows · Cases Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build case_clusters rows · Cases Ingest": {
+      "main": [
+        [
+          {
+            "node": "Clear old dengue clusters · Cases Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear old dengue clusters · Cases Ingest": {
+      "main": [
+        [
+          {
+            "node": "Upsert to Supabase · Cases Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert to Supabase · Cases Ingest": {
+      "main": [
+        [
+          {
+            "node": "Build daily snapshot · Cases Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build daily snapshot · Cases Ingest": {
+      "main": [
+        [
+          {
+            "node": "Upsert daily snapshot · Cases Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 15 min · News Ingest": {
+      "main": [
+        [
+          {
+            "node": "Health sources · News Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health sources · News Ingest": {
+      "main": [
+        [
+          {
+            "node": "Read feed · News Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read feed · News Ingest": {
+      "main": [
+        [
+          {
+            "node": "Normalize + og:image · News Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize + og:image · News Ingest": {
+      "main": [
+        [
+          {
+            "node": "Collect rows · News Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect rows · News Ingest": {
+      "main": [
+        [
+          {
+            "node": "Upsert to Supabase · News Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every hour · News (legacy)": {
+      "main": [
+        [
+          {
+            "node": "NewsData.io (SG health) · News (legacy)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NewsData.io (SG health) · News (legacy)": {
+      "main": [
+        [
+          {
+            "node": "Map -> news_updates rows · News (legacy)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map -> news_updates rows · News (legacy)": {
+      "main": [
+        [
+          {
+            "node": "Upsert to Supabase · News (legacy)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
