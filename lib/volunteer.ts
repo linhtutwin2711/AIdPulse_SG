@@ -11,6 +11,7 @@ import {
   saveVolunteerSkills as saveLocalSkills,
   type CertificateAnalysis,
 } from "@/lib/certificate-ai";
+import type { VolunteerProfile } from "@/types";
 
 export interface VolunteerProfileInput {
   fullName?: string | null;
@@ -96,6 +97,39 @@ export async function saveVolunteerProfile(
   } catch {
     /* storage full/blocked — localStorage skills mirror still covers the UX */
   }
+}
+
+/**
+ * Every registered volunteer (name + skills), for the Emergency Officer’s
+ * Volunteers page. Reads the real volunteer_profiles roster via the
+ * get_all_volunteers RPC; returns [] without Supabase so the officer page falls
+ * back to its mock roster. Stats aren’t tracked here, so they start at zero.
+ */
+export async function fetchAllVolunteers(): Promise<VolunteerProfile[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase.rpc("get_all_volunteers");
+  if (error) {
+    console.warn("[volunteer] get_all_volunteers failed:", error.message);
+    return [];
+  }
+  if (!Array.isArray(data)) return [];
+  return data.map((r, i) => {
+    const name = (r.full_name as string | null)?.trim() || "Volunteer";
+    const initials =
+      name
+        .split(/\s+/)
+        .map((w) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase() || "V";
+    return {
+      id: `reg-vol-${i}-${name.toLowerCase().replace(/\s+/g, "-")}`,
+      name,
+      initials,
+      skills: Array.isArray(r.skills) ? (r.skills as string[]) : [],
+      stats: { totalMissions: 0, hours: 0, livesSupported: 0 },
+    };
+  });
 }
 
 /** Load the volunteer's skills — from Supabase by phone, else localStorage. */
