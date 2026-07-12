@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import {
   CircleMarker,
@@ -79,6 +79,18 @@ const inSingapore = (lat: number, lng: number) => {
   }
   return true;
 };
+
+/** Tracks the app theme so the tile layer can switch dark/light basemaps. */
+function useDarkTheme() {
+  const [dark, setDark] = useState(true);
+  useEffect(() => {
+    const sync = () => setDark(document.documentElement.classList.contains("dark"));
+    sync();
+    window.addEventListener("aidpulse:theme-change", sync);
+    return () => window.removeEventListener("aidpulse:theme-change", sync);
+  }, []);
+  return dark;
+}
 
 /** Flies the map to a target when the search nonce changes. */
 function FlyTo({ target, nonce }: { target: [number, number] | null; nonce: number }) {
@@ -195,6 +207,9 @@ export default function MapInner({
   // ambient scatter, with a glowing ring when selected).
   const visibleCases = activeCases.filter((c) => isEnabled(c.caseType));
 
+  // Basemap follows the app theme (CARTO ships matching dark/light tile sets).
+  const darkTheme = useDarkTheme();
+
   return (
     <MapContainer
       center={SG_CENTER}
@@ -202,10 +217,10 @@ export default function MapInner({
       scrollWheelZoom
       zoomControl={false}
       className="h-full w-full"
-      style={{ background: "#0a0b0e" }}
     >
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        key={darkTheme ? "dark" : "light"}
+        url={`https://{s}.basemaps.cartocdn.com/${darkTheme ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`}
         attribution="&copy; OpenStreetMap &copy; CARTO"
       />
       <ZoomBus dir={zoomDir} nonce={zoomNonce} />

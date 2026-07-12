@@ -32,7 +32,18 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={cn("dark", geist.variable)}>
+    // Dark is the default brand theme; a stored "light" preference is applied
+    // before first paint so there's no flash. suppressHydrationWarning covers
+    // the class the boot script may remove.
+    <html lang="en" className={cn("dark", geist.variable)} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('aidpulse:theme')==='light')document.documentElement.classList.remove('dark')}catch(e){}",
+          }}
+        />
+      </head>
       <body className="font-sans antialiased">
         <RoleProvider>
           <ProfileProvider>

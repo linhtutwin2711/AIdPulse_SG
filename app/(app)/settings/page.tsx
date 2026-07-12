@@ -20,6 +20,7 @@ import { useMissions } from "@/components/providers/missions-provider";
 import { Button } from "@/components/ui/button";
 import { ImpactStats } from "@/components/volunteer/impact-stats";
 import { countries, defaultCountry } from "@/constants";
+import { currentTheme, setTheme, type ThemeMode } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -216,6 +217,51 @@ function AccountTab() {
   );
 }
 
+// Dark/light theme cards. Reads the real <html> class after mount (SSR-safe)
+// and applies + persists the choice via lib/theme.
+function ThemeSection() {
+  const [mode, setMode] = useState<ThemeMode | null>(null);
+  useEffect(() => setMode(currentTheme()), []);
+
+  const pick = (m: ThemeMode) => {
+    setTheme(m);
+    setMode(m);
+  };
+
+  const card = (m: ThemeMode, label: string) => {
+    const active = mode === m;
+    return (
+      <button
+        type="button"
+        onClick={() => pick(m)}
+        aria-pressed={active}
+        className={cn(
+          "flex-1 rounded-xl p-4 text-left text-sm font-medium transition-colors",
+          active
+            ? "border-2 border-info bg-secondary/40"
+            : "border border-border text-muted-foreground hover:text-foreground"
+        )}
+      >
+        {label}
+        {active && <span className="ml-1 text-info">· Active</span>}
+      </button>
+    );
+  };
+
+  return (
+    <div className="surface p-6">
+      <h3 className="font-semibold">Theme</h3>
+      <p className="text-sm text-muted-foreground">
+        Dark is tuned for night-time monitoring; light for daytime readability.
+      </p>
+      <div className="mt-3 flex gap-3">
+        {card("dark", "🌙 Dark")}
+        {card("light", "☀️ Light")}
+      </div>
+    </div>
+  );
+}
+
 function AppearanceTab() {
   const { settings, update } = useSettings();
   return (
@@ -238,13 +284,7 @@ function AppearanceTab() {
         </div>
       </div>
 
-      <div className="surface p-6">
-        <h3 className="font-semibold">Theme</h3>
-        <div className="mt-3 flex gap-3">
-          <div className="flex-1 rounded-xl border-2 border-info bg-secondary/40 p-4 text-sm font-medium">🌙 Dark <span className="ml-1 text-info">· Active</span></div>
-          <div className="flex-1 cursor-not-allowed rounded-xl border border-border p-4 text-sm text-muted-foreground">☀️ Light <span className="ml-1">· Soon</span></div>
-        </div>
-      </div>
+      <ThemeSection />
 
       <div className="surface p-6">
         <Row title="Reduce motion" desc="Minimize animations and transitions across the app.">

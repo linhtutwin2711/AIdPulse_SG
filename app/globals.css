@@ -6,13 +6,69 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  AidPulse SG — dark-only emergency-response theme.
+  AidPulse SG — emergency-response theme, dark by default with a light mode.
   Semantic accents drive the whole UI:
     danger/critical = red, info = blue, success = green, warning/officer = amber.
+  `:root` holds the LIGHT palette; `.dark` (the default, set on <html>) overrides
+  it with the original dark palette. The toggle lives in the top nav.
 */
 :root {
   --radius: 0.9rem;
 
+  --background: #f5f6f8;
+  --foreground: #16181d;
+
+  --card: #ffffff;
+  --card-foreground: #16181d;
+  --popover: #ffffff;
+  --popover-foreground: #16181d;
+
+  --primary: #ef4444;
+  --primary-foreground: #ffffff;
+
+  --secondary: #e9ebf0;
+  --secondary-foreground: #16181d;
+
+  --muted: #edeff3;
+  --muted-foreground: #5c5f68;
+
+  --accent: #e9ebf0;
+  --accent-foreground: #16181d;
+
+  --destructive: #dc2626;
+
+  --border: #dcdfe6;
+  --input: #d3d7df;
+  --ring: #ef4444;
+
+  /* AidPulse semantic accents (deeper shades for contrast on white) */
+  --danger: #dc2626;
+  --danger-foreground: #ffffff;
+  --info: #2563eb;
+  --info-foreground: #ffffff;
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
+  --gold: #ca8a04;
+
+  --chart-1: #dc2626;
+  --chart-2: #2563eb;
+  --chart-3: #16a34a;
+  --chart-4: #d97706;
+  --chart-5: #9333ea;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #16181d;
+  --sidebar-primary: #ef4444;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9ebf0;
+  --sidebar-accent-foreground: #16181d;
+  --sidebar-border: #dcdfe6;
+  --sidebar-ring: #ef4444;
+}
+
+.dark {
   --background: #0a0b0e;
   --foreground: #f3f4f7;
 
@@ -39,7 +95,6 @@
   --input: #2a2b34;
   --ring: #ef4444;
 
-  /* AidPulse semantic accents */
   --danger: #ef4444;
   --danger-foreground: #ffffff;
   --info: #3b82f6;
@@ -128,6 +183,9 @@
   }
   html {
     @apply font-sans;
+    color-scheme: light;
+  }
+  html.dark {
     color-scheme: dark;
   }
   body {
@@ -244,7 +302,7 @@
   overflow: hidden;
   border-radius: 9999px;
   border: 2px solid #3b82f6;
-  background: #14161d;
+  background: var(--card);
 }
 .hbadge-fill {
   position: absolute;
@@ -255,7 +313,7 @@
 .hbadge-h {
   position: relative;
   z-index: 1;
-  color: #fff;
+  color: var(--foreground);
   font-size: 14px;
   font-weight: 800;
 }
@@ -263,15 +321,15 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
 }
 
-/* Leaflet renders its own panes; keep them dark and rounded inside our cards */
+/* Leaflet renders its own panes; match them to the active theme */
 .leaflet-container {
-  background: #0a0b0e;
+  background: var(--background);
   font-family: var(--font-sans);
 }
 .leaflet-control-attribution {
-  background: rgba(10, 11, 14, 0.7) !important;
-  color: #6b6d77 !important;
+  background: color-mix(in oklab, var(--background) 70%, transparent) !important;
+  color: var(--muted-foreground) !important;
 }
 .leaflet-control-attribution a {
-  color: #9a9ca6 !important;
+  color: var(--foreground) !important;
 }

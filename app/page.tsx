@@ -111,12 +111,32 @@ export default function LandingPage() {
       <main className="relative z-10 mx-auto grid w-full max-w-[1400px] flex-1 items-center gap-12 px-8 pb-16 lg:grid-cols-[1.3fr_1fr]">
         {/* Hero */}
         <section>
-          <h1 className="text-5xl font-bold tracking-tight max-md:text-4xl">
-            Welcome to AidPulse SG
-          </h1>
-          <p className="mt-3 text-xl font-medium text-info">
-            All in one place. Faster Response.
+          <p className="inline-flex items-center gap-2 rounded-full border border-danger/30 bg-danger/10 px-3 py-1 text-xs font-medium text-danger">
+            <Activity className="size-3.5" /> Live emergency response for Singapore
           </p>
+          <h1 className="mt-4 text-5xl font-bold leading-tight tracking-tight max-md:text-4xl">
+            Every alert, map and hospital —{" "}
+            <span className="text-danger">one app</span>.
+          </h1>
+          <p className="mt-4 max-w-xl text-lg text-muted-foreground">
+            Stop juggling news sites, hotlines and rumour mills during a health
+            crisis. AidPulse SG puts live case maps, hospital beds, verified
+            alerts and volunteering in one place — so you can act in seconds,
+            not hours.
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <Button
+              size="lg"
+              onClick={() => document.getElementById("get-started")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+              className="h-12 px-7 text-base"
+            >
+              Get Started — it&apos;s free
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Free forever · No card needed · Works on any phone
+            </span>
+          </div>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
             {FEATURES.map((f) => (
@@ -129,15 +149,10 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-
-          <div className="mt-10 flex items-center gap-3 text-danger">
-            <Activity className="size-6" />
-            <div className="h-px flex-1 bg-gradient-to-r from-danger/60 to-transparent" />
-          </div>
         </section>
 
         {/* Auth card */}
-        <section className="surface w-full max-w-md justify-self-end p-8">
+        <section id="get-started" className="surface w-full max-w-md justify-self-end p-8">
           {/* Mode toggle — only on the first step */}
           {stage === "phone" && (
             <div className="grid grid-cols-2 gap-1 rounded-full border border-border bg-card/60 p-1">
@@ -316,6 +331,105 @@ export default function LandingPage() {
           )}
         </section>
       </main>
+
+      {/* How it works */}
+      <section className="relative z-10 border-t border-border">
+        <div className="mx-auto max-w-[1400px] px-8 py-16">
+          <h2 className="text-center text-3xl font-bold">From worried to prepared in 4 steps</h2>
+          <p className="mx-auto mt-2 max-w-lg text-center text-muted-foreground">
+            No forms, no waiting — you&apos;re protected within a minute of signing up.
+          </p>
+          <div className="mt-10 grid gap-4 md:grid-cols-4">
+            {[
+              { n: "1", t: "Sign up with your phone", d: "One number, one code — no passwords to remember, no email chains." },
+              { n: "2", t: "Allow location & alerts", d: "So AidPulse can warn you about risks near you, the moment they appear." },
+              { n: "3", t: "See what's around you", d: "Live case clusters, hospital bed availability and verified alerts on one map." },
+              { n: "4", t: "Report & respond", d: "Report incidents in 30 seconds, or step up as a volunteer when help is needed." },
+            ].map((s) => (
+              <div key={s.n} className="surface relative p-6">
+                <span className="flex size-9 items-center justify-center rounded-full bg-danger/15 text-sm font-bold text-danger">
+                  {s.n}
+                </span>
+                <h3 className="mt-4 font-semibold">{s.t}</h3>
+                <p className="mt-1.5 text-sm text-muted-foreground">{s.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Feature grid */}
+      <section className="relative z-10 border-t border-border">
+        <div className="mx-auto max-w-[1400px] px-8 py-16">
+          <h2 className="text-center text-3xl font-bold">
+            Replace five tabs with <span className="text-danger">one app</span>
+          </h2>
+          <p className="mx-auto mt-2 max-w-lg text-center text-muted-foreground">
+            News sites, hospital hotlines, chat groups, volunteer boards, official advisories —
+            AidPulse brings them together.
+          </p>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { t: "Live case map", d: "Real NEA dengue clusters and community reports, updated automatically — filter by disease and area." },
+              { t: "Hospital beds in real time", d: "30 Singapore hospitals with ward-level availability, kept current by on-site emergency officers." },
+              { t: "AI assistant, 24/7", d: "Ask anything about symptoms, safety steps or the nearest open hospital — answers grounded in live data." },
+              { t: "Emergency broadcasts", d: "Verified officer alerts reach your lock screen like a government advisory — even with the app closed." },
+              { t: "Volunteer in minutes", d: "Upload a certificate, let AI match your skills, and check in to missions with a QR code." },
+              { t: "Friends & responders", d: "Find friends by phone number, message them live, and let officers coordinate hospital-to-hospital." },
+            ].map((f) => (
+              <div key={f.t} className="surface p-6">
+                <h3 className="font-semibold">{f.t}</h3>
+                <p className="mt-1.5 text-sm text-muted-foreground">{f.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="relative z-10 border-t border-border">
+        <div className="mx-auto max-w-[1400px] px-8 py-16">
+          <h2 className="text-center text-3xl font-bold">Trusted across the island</h2>
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {[
+              { q: "During the last dengue spike I knew exactly which streets to avoid on the school run. My neighbours were still forwarding rumours.", n: "Mei Lin", r: "Parent · Tampines" },
+              { q: "I uploaded my first-aid cert and had a hospital mission matched to me the same evening. Checking in was literally one QR scan.", n: "Arjun", r: "Volunteer · Clementi" },
+              { q: "Ward capacity used to go out by phone calls. Now I update beds once and every responder sees it instantly.", n: "Dr. Farah", r: "Emergency Officer · Woodlands" },
+            ].map((t) => (
+              <figure key={t.n} className="surface p-6">
+                <blockquote className="text-sm leading-relaxed">&ldquo;{t.q}&rdquo;</blockquote>
+                <figcaption className="mt-4 text-sm">
+                  <span className="font-semibold">{t.n}</span>
+                  <span className="text-muted-foreground"> · {t.r}</span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="relative z-10 border-t border-border">
+        <div className="mx-auto max-w-3xl px-8 py-16">
+          <h2 className="text-center text-3xl font-bold">Frequently asked questions</h2>
+          <div className="mt-8 space-y-3">
+            {[
+              { q: "Is AidPulse SG really free?", a: "Yes — completely free for citizens, volunteers and officers. It's a community resilience project, not a subscription product." },
+              { q: "What happens to my data?", a: "Your phone number and reports are used only for emergency alerts and response coordination. Location is used to show nearby risks, never sold or shared with advertisers. Health reports are aggregated and PII-protected." },
+              { q: "Does it work on my phone?", a: "Yes — AidPulse runs in any modern browser. Add it to your home screen and it installs like a native app, with emergency broadcasts on your lock screen." },
+              { q: "How do I become a volunteer?", a: "Verify your email, upload any certificates you have (our AI reads them and matches you to opportunities), and you're in — most people finish in under two minutes." },
+              { q: "Who can send emergency broadcasts?", a: "Only verified Emergency Officers — access requires an official agency authorization letter checked by AI, so alerts you receive are trustworthy." },
+            ].map((f) => (
+              <details key={f.q} className="surface group p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden">
+                  {f.q}
+                </summary>
+                <p className="mt-2 text-sm text-muted-foreground">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <footer className="relative z-10 border-t border-border">
         <div className="mx-auto flex max-w-[1400px] items-center justify-center gap-2 px-8 py-4 text-sm">
