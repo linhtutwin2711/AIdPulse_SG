@@ -120,9 +120,9 @@ export default function BroadcastPage() {
 
           {sent && (
             <p className="rounded-xl bg-success/10 px-4 py-3 text-sm text-success">
-              ✓ Broadcast sent to citizens in the selected area.
+              ✓ Broadcast sent. It appears live in every open AidPulse app.
               {delivered !== null &&
-                ` Push notifications delivered to ${delivered} subscribed device${delivered === 1 ? "" : "s"}.`}
+                ` ${delivered} device${delivered === 1 ? "" : "s"} also received a push notification on their lock screen.`}
             </p>
           )}
           {sendError && (

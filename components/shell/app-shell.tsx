@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { AILauncher } from "@/components/ai-assistant/ai-launcher";
 import { AIPanel } from "@/components/ai-assistant/ai-panel";
+import { BroadcastListener } from "@/components/shell/broadcast-listener";
 import { enableBroadcastPush, pushSupported } from "@/lib/push";
 import { cn } from "@/lib/utils";
 import { TopNav } from "./top-nav";
@@ -41,6 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <AILauncher />
       <AIPanel />
+      <BroadcastListener />
     </div>
   );
 }

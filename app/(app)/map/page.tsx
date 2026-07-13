@@ -12,6 +12,7 @@ import { RoleSwitchCards } from "@/components/shell/role-switch-cards";
 import { useRole } from "@/components/providers/role-provider";
 import { useCases } from "@/components/providers/cases-provider";
 import { fetchCaseMarkers, fetchHospitals, getTempFacilities, occupancyBand } from "@/lib/data";
+import { applyBedOverrides } from "@/lib/beds";
 import { roleLabel } from "@/lib/ui";
 import type { ActiveCase, CaseMarker, Hospital, TempFacility } from "@/types";
 import { cn } from "@/lib/utils";
@@ -51,16 +52,37 @@ export default function MapPage() {
   // falling back to stale mock data.
   const [cases, setCases] = useState<CaseMarker[]>([]);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  // The hospitals as fetched, before officer bed edits are layered on. Kept so
+  // we can re-apply edits (which live in localStorage) without re-fetching.
+  const rawHospitals = useRef<Hospital[]>([]);
   useEffect(() => {
     let active = true;
     fetchCaseMarkers()
       .then((d) => active && setCases(d))
       .catch((err) => console.error("MapPage fetchCaseMarkers failed:", err));
     fetchHospitals()
-      .then((d) => active && setHospitals(d))
+      .then((d) => {
+        if (!active) return;
+        rawHospitals.current = d;
+        // Layer the officer's live bed edits on top so the map matches /officer/beds.
+        setHospitals(applyBedOverrides(d));
+      })
       .catch((err) => console.error("MapPage fetchHospitals failed:", err));
     return () => {
       active = false;
+    };
+  }, []);
+
+  // Re-apply officer bed edits when they change in another tab (storage event)
+  // or when the officer switches back to this tab (focus) — so a bed update is
+  // reflected on an already-open map, not just on next navigation.
+  useEffect(() => {
+    const reapply = () => setHospitals(applyBedOverrides(rawHospitals.current));
+    window.addEventListener("focus", reapply);
+    window.addEventListener("storage", reapply);
+    return () => {
+      window.removeEventListener("focus", reapply);
+      window.removeEventListener("storage", reapply);
     };
   }, []);
 
