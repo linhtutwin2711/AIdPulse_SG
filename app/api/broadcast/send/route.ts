@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import webpush from "web-push";
-import { allSubscriptions, removeSubscription } from "../store";
+import { allSubscriptions, removeSubscription, saveLatestBroadcast } from "../store";
 
 /**
  * The officer's Broadcast form POSTs here; every subscribed device (citizen,
@@ -36,9 +36,16 @@ export async function POST(req: Request) {
 
   const severity = (body?.severity ?? "high").toUpperCase();
   const area = body?.area ?? "Singapore";
+  const trimmed = message.slice(0, 300);
+
+  // Record this as the latest broadcast so every open app tab can surface it
+  // in-app (a reliable fallback to OS push). Unique id per send.
+  const now = Date.now();
+  saveLatestBroadcast({ id: `${now}-${Math.round(now % 1000)}`, severity, area, message: trimmed, ts: now });
+
   const payload = JSON.stringify({
     title: `🚨 ${severity} ALERT · ${area}`,
-    body: message.slice(0, 300),
+    body: trimmed,
     url: "/dashboard",
     tag: "aidpulse-broadcast",
   });

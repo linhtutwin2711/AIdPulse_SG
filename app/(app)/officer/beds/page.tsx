@@ -5,6 +5,7 @@ import { BedDouble, Building2, Minus, Plus, ShieldCheck } from "lucide-react";
 import { OfficerNav } from "@/components/officer/officer-nav";
 import { useRole } from "@/components/providers/role-provider";
 import { getHospital, getHospitals } from "@/lib/data";
+import { bedOverrideKey } from "@/lib/beds";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,7 +19,7 @@ export default function OfficerBedsPage() {
   // Fall back to the first hospital if an officer signed in before hospital
   // selection existed.
   const hospital = (officerHospitalId ? getHospital(officerHospitalId) : undefined) ?? getHospitals()[0];
-  const storageKey = `aidpulse:beds:${hospital.id}`;
+  const storageKey = bedOverrideKey(hospital.id);
 
   // occupied count per department, seeded from the fixture.
   const [occupied, setOccupied] = useState<Record<string, number>>(

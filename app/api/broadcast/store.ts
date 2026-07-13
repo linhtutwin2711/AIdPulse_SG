@@ -20,6 +20,28 @@ export interface StoredSubscription {
   keys: { p256dh: string; auth: string };
 }
 
+// The most recent broadcast, so open app tabs can show it in-app (a reliable
+// fallback to OS push, which depends on per-device subscription + OS settings).
+// Kept in process memory on globalThis — fine for the demo (single dev/server
+// process); a production multi-instance deploy would persist this to Supabase.
+export interface LatestBroadcast {
+  id: string;
+  severity: string;
+  area: string;
+  message: string;
+  ts: number;
+}
+
+const g = globalThis as unknown as { __aidpulseLatestBroadcast?: LatestBroadcast };
+
+export function saveLatestBroadcast(b: LatestBroadcast): void {
+  g.__aidpulseLatestBroadcast = b;
+}
+
+export function getLatestBroadcast(): LatestBroadcast | null {
+  return g.__aidpulseLatestBroadcast ?? null;
+}
+
 // On globalThis so the subscribe and send routes share one Map even when the
 // dev server gives each route bundle its own module instance.
 const memory: Map<string, StoredSubscription> = ((
@@ -42,11 +64,16 @@ export async function removeSubscription(endpoint: string): Promise<void> {
 }
 
 export async function allSubscriptions(): Promise<StoredSubscription[]> {
+  // Merge in-memory subs (this process) with any persisted in Supabase, deduped
+  // by endpoint. Merging — rather than treating Supabase as exclusively
+  // authoritative — means a device that subscribed this session is never
+  // dropped just because the Supabase table is missing, empty, or RLS-blocked.
+  const byEndpoint = new Map(memory);
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from("push_subscriptions").select("endpoint, keys");
-    // A successful query is authoritative — even when empty. Only fall back to
-    // memory when the table is missing/erroring (pre-migration dev).
-    if (!error && data) return data as StoredSubscription[];
+    if (!error && data) {
+      for (const s of data as StoredSubscription[]) byEndpoint.set(s.endpoint, s);
+    }
   }
-  return [...memory.values()];
+  return [...byEndpoint.values()];
 }
