@@ -22,8 +22,21 @@ export interface StoredSubscription {
 
 // The most recent broadcast, so open app tabs can show it in-app (a reliable
 // fallback to OS push, which depends on per-device subscription + OS settings).
-// Kept in process memory on globalThis — fine for the demo (single dev/server
-// process); a production multi-instance deploy would persist this to Supabase.
+//
+// Primary: the Supabase `broadcasts` table — REQUIRED on Vercel, where each
+// serverless instance has its own memory, so an officer's broadcast saved on
+// one instance would otherwise be invisible to a citizen whose /latest poll
+// lands on another. Fallback: process memory on globalThis, so local dev works
+// before the table exists. SQL to create the table:
+//
+//   create table if not exists public.broadcasts (
+//     id text primary key, severity text not null, area text not null,
+//     message text not null, ts bigint not null,
+//     created_at timestamptz default now()
+//   );
+//   alter table public.broadcasts enable row level security;
+//   create policy "anon manage broadcasts" on public.broadcasts
+//     for all to anon using (true) with check (true);
 export interface LatestBroadcast {
   id: string;
   severity: string;
@@ -34,11 +47,28 @@ export interface LatestBroadcast {
 
 const g = globalThis as unknown as { __aidpulseLatestBroadcast?: LatestBroadcast };
 
-export function saveLatestBroadcast(b: LatestBroadcast): void {
+export async function saveLatestBroadcast(b: LatestBroadcast): Promise<void> {
   g.__aidpulseLatestBroadcast = b;
+  if (!isSupabaseConfigured) return;
+  const { error } = await supabase
+    .from("broadcasts")
+    .insert({ id: b.id, severity: b.severity, area: b.area, message: b.message, ts: b.ts });
+  if (error) console.warn("[broadcast] latest not persisted (table missing?):", error.message);
 }
 
-export function getLatestBroadcast(): LatestBroadcast | null {
+export async function getLatestBroadcast(): Promise<LatestBroadcast | null> {
+  // Prefer Supabase (shared across instances); fall back to this process's
+  // memory so the feature still degrades gracefully if the table is missing.
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase
+      .from("broadcasts")
+      .select("id, severity, area, message, ts")
+      .order("ts", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!error && data) return data as LatestBroadcast;
+    if (error) console.warn("[broadcast] latest read fell back to memory:", error.message);
+  }
   return g.__aidpulseLatestBroadcast ?? null;
 }
 

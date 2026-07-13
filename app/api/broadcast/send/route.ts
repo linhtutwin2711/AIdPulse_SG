@@ -17,14 +17,6 @@ const SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:alerts@aidpulse.sg";
 // cannot verify the caller is a real officer. The upgrade path is Supabase
 // Auth (phone sign-in) + a role claim check here before sending.
 export async function POST(req: Request) {
-  if (!PUBLIC_KEY || !PRIVATE_KEY) {
-    return NextResponse.json(
-      { error: "Push is not configured. Set the VAPID keys in .env.local." },
-      { status: 503 }
-    );
-  }
-  webpush.setVapidDetails(SUBJECT, PUBLIC_KEY, PRIVATE_KEY);
-
   let body: { area?: string; severity?: string; message?: string } | null;
   try {
     body = await req.json();
@@ -38,10 +30,23 @@ export async function POST(req: Request) {
   const area = body?.area ?? "Singapore";
   const trimmed = message.slice(0, 300);
 
-  // Record this as the latest broadcast so every open app tab can surface it
-  // in-app (a reliable fallback to OS push). Unique id per send.
+  // Record this as the latest broadcast FIRST, so every open app tab can surface
+  // it in-app (BroadcastListener) — the reliable fallback to OS push. This must
+  // happen even when VAPID push isn't configured: the officer UI treats the 503
+  // below as "demo mode, in-app broadcast still counts", which is only true
+  // because we persist here before the push check. Unique id per send.
   const now = Date.now();
-  saveLatestBroadcast({ id: `${now}-${Math.round(now % 1000)}`, severity, area, message: trimmed, ts: now });
+  await saveLatestBroadcast({ id: `${now}-${Math.round(now % 1000)}`, severity, area, message: trimmed, ts: now });
+
+  // OS push is best-effort on top of the in-app alert: skip cleanly (503) when
+  // the VAPID keys aren't set, without losing the broadcast we just saved.
+  if (!PUBLIC_KEY || !PRIVATE_KEY) {
+    return NextResponse.json(
+      { error: "Push is not configured. Set the VAPID keys in .env.local." },
+      { status: 503 }
+    );
+  }
+  webpush.setVapidDetails(SUBJECT, PUBLIC_KEY, PRIVATE_KEY);
 
   const payload = JSON.stringify({
     title: `🚨 ${severity} ALERT · ${area}`,

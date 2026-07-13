@@ -8,7 +8,7 @@ import { getLatestBroadcast } from "../store";
  */
 export async function GET() {
   return NextResponse.json(
-    { broadcast: getLatestBroadcast() },
+    { broadcast: await getLatestBroadcast() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
